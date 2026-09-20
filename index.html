@@ -185,11 +185,14 @@
         /* ==================== 同期バッジ・同期パネル ==================== */
         .hidden-gate { display: none !important; }
         #auth-sync-badge {
-            position: absolute; top: calc(var(--safe-top) + 10px); right: 14px; z-index: 60;
+            /* 右上は各設定パネルの「追加」「完了」「保存」ボタンの定位置なので、そこを避けて左上に置く。
+               pointer-eventsも切って、万一何かと重なっても下のボタンのタップを奪わないようにする */
+            position: absolute; top: calc(var(--safe-top) + 10px); left: 14px; z-index: 15;
             font-size: 11px; font-weight: 600; color: var(--ios-gray);
             background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
             padding: 4px 10px; border-radius: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
             display: flex; align-items: center; gap: 5px; transition: opacity 0.2s;
+            pointer-events: none;
         }
         #auth-sync-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #34C759; }
         #auth-sync-badge.syncing .dot { background: #FF9500; animation: pulseDot 1s infinite; }
