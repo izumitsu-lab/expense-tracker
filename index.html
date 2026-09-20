@@ -1315,6 +1315,20 @@
         // (以前は取引だけ個別保存・お店やカテゴリーなどはひとつの塊で保存していたため、
         //  両端末で同時に追加すると片方が消えることがあった。全部この方式に統一する)
         const SYNCED_COLLECTIONS = ['transactions', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
+        // 並び順(ドラッグで変えられるもの)を保つ必要があるもの。取引は表示時に日付で
+        // 並べ直すので配列の順番自体に意味がなく、対象外。
+        const ORDERED_COLLECTIONS = new Set(['shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses']);
+
+        // クラウドには1件ずつ別ドキュメントとして保存するため、「配列の何番目にあるか」という
+        // 順番の情報がそのままでは失われる。保存する内容に _order (今の並び順)を埋め込むことで、
+        // 読み込むときにその番号で並べ直せば、ドラッグで変えた順番も同期される。
+        function withOrder(arr, name) {
+            if (!ORDERED_COLLECTIONS.has(name)) return arr;
+            return (arr || []).map((item, idx) => Object.assign({}, item, { _order: idx }));
+        }
+        function sortByOrder(arr) {
+            return arr.slice().sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
+        }
 
         let collRefs = {};           // name -> Firestoreのコレクション参照
         let lastSyncedMaps = {};     // name -> Map(id -> 最後にクラウドへ反映したJSON文字列)
@@ -1343,7 +1357,7 @@
         // 1つの項目(例: shops)について、ローカルの配列とクラウドの最新反映状況を比べて、
         // 追加・変更・削除された分だけをFirestoreのバッチ書き込みに積む
         function diffCollectionIntoBatch(batch, name) {
-            const localArr = state[name] || [];
+            const localArr = withOrder(state[name] || [], name);
             const currentMap = new Map(localArr.map(item => [item.id, JSON.stringify(item)]));
             const lastMap = lastSyncedMaps[name];
             let ops = 0;
@@ -1384,10 +1398,13 @@
         function attachRealtimeListeners() {
             SYNCED_COLLECTIONS.forEach(name => {
                 collRefs[name].onSnapshot(snap => {
-                    const arr = [];
+                    let arr = [];
                     snap.forEach(d => arr.push(d.data()));
-                    state[name] = arr;
+                    // lastSyncedMapsは実際にクラウドへ書き込んだ内容(_order込み)と比較するためのものなので、
+                    // _orderが入ったままのJSONで保持する。表示用のstate[name]は並び順に直したものを使う。
                     lastSyncedMaps[name] = new Map(arr.map(item => [item.id, JSON.stringify(item)]));
+                    if (ORDERED_COLLECTIONS.has(name)) arr = sortByOrder(arr);
+                    state[name] = arr;
                     localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
                     refreshCurrentView();
                 }, err => console.error(name + ' の同期監視でエラー', err));
@@ -1408,15 +1425,25 @@
             let hasBatchOps = false;
 
             SYNCED_COLLECTIONS.forEach(name => {
-                const remoteItems = snaps[name].docs.map(d => d.data());
+                let remoteItems = snaps[name].docs.map(d => d.data());
+                if (ORDERED_COLLECTIONS.has(name)) remoteItems = sortByOrder(remoteItems);
                 const remoteIds = new Set(remoteItems.map(x => x.id));
                 const localOnly = (state[name] || []).filter(x => x && !remoteIds.has(x.id));
 
-                // クラウド側 + この端末にしかなかった項目、両方を残す
-                state[name] = remoteItems.concat(localOnly);
-                lastSyncedMaps[name] = new Map(state[name].map(item => [item.id, JSON.stringify(item)]));
+                // クラウド側(既存の並び順) + この端末にしかなかった項目(末尾に追加)、両方を残す
+                let merged = remoteItems.concat(localOnly);
 
-                localOnly.forEach(item => { batch.set(collRefs[name].doc(item.id), item); hasBatchOps = true; });
+                if (localOnly.length > 0 && ORDERED_COLLECTIONS.has(name)) {
+                    // 新しく合流した項目がある場合は、並び順を通し番号で振り直してクラウドに書き戻す
+                    // (既存の項目も含めて全件書き戻す。以後は差分同期に切り替わるので一度だけの処理)
+                    merged = withOrder(merged, name);
+                    merged.forEach(item => { batch.set(collRefs[name].doc(item.id), item); hasBatchOps = true; });
+                } else {
+                    localOnly.forEach(item => { batch.set(collRefs[name].doc(item.id), item); hasBatchOps = true; });
+                }
+
+                state[name] = merged;
+                lastSyncedMaps[name] = new Map(merged.map(item => [item.id, JSON.stringify(item)]));
             });
 
             if (hasBatchOps) await batch.commit();
