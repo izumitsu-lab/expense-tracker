@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Expense Tracker</title>
+    
+    <link rel="icon" type="image/png" href="favicon-32.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        :root {
+            --ios-bg: #F2F2F7;
+            --ios-card: #FFFFFF;
+            --ios-blue: #007AFF;
+            --ios-red: #FF3B30;
+            --ios-text: #000000;
+            --ios-gray: #8E8E93;
+            --ios-border: rgba(60, 60, 67, 0.15);
+            --nav-height: 85px;
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+            --safe-top: env(safe-area-inset-top, 0px);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            background-color: #E5E5EA;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            height: 100dvh;
+            overscroll-behavior: none;
+            -webkit-tap-highlight-color: transparent;
+            color: var(--ios-text);
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 600px;
+            height: 100%;
+            background-color: var(--ios-bg);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0,0,0,0.1);
+        }
+
+        .view-section {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            padding-top: var(--safe-top);
+            padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
+            background-color: var(--ios-bg);
+            z-index: 10;
+        }
+        .view-section.active {
+            display: flex;
+            animation: fadeIn 0.15s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .slide-panel {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--ios-bg);
+            z-index: 30;
+            transform: translateX(100%);
+            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+            display: flex;
+            flex-direction: column;
+            padding-top: var(--safe-top);
+            padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
+        }
+        .slide-panel.active { transform: translateX(0); }
+
+        .modal-sheet {
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+            background: var(--ios-bg);
+            z-index: 50;
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            padding-top: var(--safe-top);
+        }
+        .modal-sheet.active { transform: translateY(0); }
+
+        .glass-nav {
+            background: rgba(242, 242, 247, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--ios-border);
+            padding-bottom: var(--safe-bottom);
+            height: calc(var(--nav-height) + var(--safe-bottom));
+            z-index: 40;
+            position: absolute;
+            bottom: 0; width: 100%;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            align-items: flex-start;
+            padding: 8px 12px 0 12px;
+        }
+
+        .btn-global-add {
+            position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
+            width: 72px; height: 72px;
+            background: linear-gradient(180deg, #007AFF 0%, #005ecb 100%);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            color: white; border: 6px solid #F2F2F7;
+            box-shadow: 0 8px 20px rgba(0,122,255,0.4);
+            transition: transform 0.1s;
+            z-index: 50;
+        }
+        .btn-global-add:active { transform: translateX(-50%) scale(0.9); }
+
+        .numpad-btn {
+            background: var(--ios-card); font-size: 28px; font-weight: 400;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.1s; cursor: pointer; user-select: none;
+            border-radius: 18px; height: 70px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            color: #1C1C1E;
+        }
+        .numpad-btn.transparent { background: transparent; box-shadow: none; font-size: 24px; }
+        .numpad-btn:active { background-color: #E5E5EA; transform: scale(0.92); }
+
+        .class-btn {
+            background: var(--ios-card); border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 8px; cursor: pointer; transition: transform 0.1s, background-color 0.1s;
+            padding: 16px 4px; aspect-ratio: 1;
+        }
+        .class-btn:active { background-color: #F8F8F9; transform: scale(0.95); }
+        .class-btn-icon { font-size: 32px; }
+        .class-btn-text { font-size: 13px; font-weight: 600; color: #1C1C1E; letter-spacing: -0.02em; }
+
+        .ios-list { background: var(--ios-card); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+        .ios-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; border-bottom: 1px solid var(--ios-border); font-size: 17px;
+            background: var(--ios-card); min-height: 48px; transition: background-color 0.15s;
+        }
+        .ios-item.clickable:active { background-color: #E5E5EA; }
+        .ios-item:last-child { border-bottom: none; }
+        
+        .ios-input { text-align: right; color: var(--ios-gray); background: transparent; outline: none; flex-grow: 1; margin-left: 16px; font-size: 17px; width: 100%; }
+        
+        .drag-handle { cursor: grab; color: #C7C7CC; padding: 0 10px; font-size: 22px; display: flex; align-items: center; justify-content: center; height: 100%; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
+        .overlay.active { display: flex; opacity: 1; }
+        .dialog-box { background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); border-radius: 14px; width: 270px; text-align: center; overflow: hidden; transform: scale(1.05); transition: transform 0.2s; }
+        .overlay.active .dialog-box { transform: scale(1); }
+        .dialog-btn { flex: 1; padding: 12px 0; font-size: 17px; font-weight: 400; background: transparent; transition: background 0.1s; }
+        .dialog-btn:active { background: #E5E5EA; }
+        
+        .empty-zone { min-height: 48px; background-color: rgba(0,0,0,0.02); border: 2px dashed rgba(0,0,0,0.1); border-radius: 12px; margin: 0 16px; display: flex; align-items: center; justify-content: center; color: #8E8E93; font-size: 13px; }
+
+        .shortcut-card {
+            background: var(--ios-card); border-radius: 24px; padding: 20px 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.03);
+            display: flex; flex-direction: column; justify-content: space-between;
+            aspect-ratio: 1; transition: transform 0.1s, background-color 0.1s, box-shadow 0.1s; cursor: pointer;
+        }
+        .shortcut-card:active { transform: scale(0.92); background-color: #F8F8F9; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+
+        #swipe-container { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+    </style>
+</head>
+<body>
+
+    <datalist id="dl-shops"></datalist>
+
+    <div class="app-container">
+        
+        <!-- ==================== MAIN VIEW (入力 / クイック入力) ==================== -->
+        <div id="view-main" class="view-section active flex-col px-0 overflow-hidden relative">
+            <div id="swipe-container" class="flex h-full w-[200%] transition-transform duration-300 ease-out" style="transform: translateX(0%);">
+                
+                <!-- 金額入力 -->
+                <div class="w-1/2 h-full flex flex-col relative shrink-0">
+                    <div class="flex-1 flex flex-col items-center justify-center px-6 pointer-events-none">
+                        <div class="text-gray-400 font-medium text-[15px] mb-3 tracking-wide">支出金額</div>
+                        <div class="text-[5.5rem] font-light tracking-tighter text-gray-900 flex items-center justify-center w-full overflow-hidden leading-none h-[120px]">
+                            <span class="text-5xl mr-2 text-gray-400 font-normal">¥</span>
+                            <span id="display-amount" class="truncate">0</span>
+                        </div>
+                    </div>
+
+                    <div class="px-6 pb-6 shrink-0 w-full max-w-sm mx-auto">
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <button class="numpad-btn" data-val="7">7</button>
+                            <button class="numpad-btn" data-val="8">8</button>
+                            <button class="numpad-btn" data-val="9">9</button>
+                            <button class="numpad-btn" data-val="4">4</button>
+                            <button class="numpad-btn" data-val="5">5</button>
+                            <button class="numpad-btn" data-val="6">6</button>
+                            <button class="numpad-btn" data-val="1">1</button>
+                            <button class="numpad-btn" data-val="2">2</button>
+                            <button class="numpad-btn" data-val="3">3</button>
+                            <button class="numpad-btn transparent text-gray-400 font-semibold" data-val="C">C</button>
+                            <button class="numpad-btn" data-val="0">0</button>
+                            <button class="numpad-btn transparent text-gray-500" data-val="BACK">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z"></path></svg>
+                            </button>
+                        </div>
+                        
+                        <button id="btn-next" onclick="proceedToClassSelect()" class="w-full py-[18px] bg-gradient-to-b from-[#007AFF] to-[#0062cc] text-white rounded-2xl text-[19px] font-bold shadow-[0_8px_20px_rgba(0,122,255,0.3)] transition-all active:scale-95 flex items-center justify-center gap-2 tracking-wide disabled:opacity-40 disabled:shadow-none disabled:active:scale-100 disabled:cursor-not-allowed">
+                            お店を選ぶ
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- クイック入力 (スワイプ) -->
+                <div class="w-1/2 h-full flex flex-col relative shrink-0 px-6">
+                    <div class="flex-1 flex flex-col max-w-sm mx-auto w-full pt-8 pointer-events-none">
+                        <div class="text-gray-400 font-medium text-[15px] mb-8 text-center tracking-wide">クイック入力</div>
+                        <div id="grid-shortcuts" class="grid grid-cols-2 gap-4 w-full content-start overflow-y-auto no-scrollbar pb-10 pointer-events-auto">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ==================== FIXED EXPENSES VIEW (自動固定費) ==================== -->
+        <div id="view-fixed" class="view-section overflow-hidden">
+            <div class="px-5 pt-6 pb-2 shrink-0">
+                <h1 class="text-[34px] font-bold mb-2 tracking-tight">自動固定費</h1>
+                <p class="text-gray-500 text-[13px] mb-6 leading-relaxed">毎月指定した日付に、この画面で設定した支出が<br>自動的に履歴（家計簿）へ追加されます。</p>
+                <button onclick="openFixedEditor(null)" class="w-full py-4 text-[#007AFF] font-bold bg-white rounded-xl shadow-sm mb-4 active:bg-gray-50 text-[16px] flex items-center justify-center gap-2 border border-[rgba(0,0,0,0.03)]">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                    固定費を追加する
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="list-fixed-expenses">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- ==================== STATS VIEW (分析) ==================== -->
+        <div id="view-stats" class="view-section overflow-hidden">
+            <div class="px-5 pb-2 pt-6 flex-shrink-0">
+                <h1 class="text-[34px] font-bold mb-4 tracking-tight">分析</h1>
+                
+                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-5 w-full relative">
+                    <div id="stats-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow transition-transform duration-200 ease-out w-[calc(50%-2px)] left-[2px]"></div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('monthly', 0)">Monthly</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('yearly', 1)">Yearly</div>
+                </div>
+
+                <div class="flex justify-between items-center mb-1">
+                    <button onclick="shiftStatsDate(-1)" class="p-2 text-[#007AFF] active:opacity-50">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <div class="text-center flex-1">
+                        <span class="text-gray-900 text-[17px] font-bold tracking-wide" id="lbl-stats-period">2026年9月</span>
+                    </div>
+                    <button onclick="shiftStatsDate(1)" class="p-2 text-[#007AFF] active:opacity-50">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+
+                <div class="text-center mt-3 mb-2">
+                    <div class="text-[13px] text-gray-500 font-medium">合計支出</div>
+                    <div class="text-[34px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-stats-total">0</span></div>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto px-5 pb-6 no-scrollbar" id="stats-content"></div>
+        </div>
+
+        <!-- ==================== CALENDAR VIEW (履歴) ==================== -->
+        <div id="view-calendar" class="view-section overflow-hidden">
+            <div class="px-5 pb-2 pt-6 flex-shrink-0">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-[34px] font-bold tracking-tight">履歴</h1>
+                        <button onclick="resetToToday()" class="bg-gray-200 text-[12px] px-2.5 py-1.5 rounded-lg font-bold text-gray-600 active:bg-gray-300 ml-2 tracking-wide">今日</button>
+                    </div>
+                    <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <input type="date" id="cal-date-picker" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-5 w-full relative">
+                    <div id="cal-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow-[0_3px_8px_rgba(0,0,0,0.12),_0_3px_1px_rgba(0,0,0,0.04)] transition-transform duration-200 ease-out w-[calc(33.333%-2px)] left-[2px]"></div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('daily', 0)">Daily</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('weekly', 1)">Weekly</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('monthly', 2)">Monthly</div>
+                </div>
+
+                <div class="flex justify-between items-end mb-2">
+                    <button onclick="shiftDate(-1)" class="p-2 text-[#007AFF] active:opacity-50 -ml-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <div class="flex flex-col items-center flex-1">
+                        <span class="text-gray-500 text-sm font-medium" id="lbl-period">今日</span>
+                        <div class="text-[28px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-total">0</span></div>
+                    </div>
+                    <button onclick="shiftDate(1)" class="p-2 text-[#007AFF] active:opacity-50 -mr-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="cal-content">
+                <div class="ios-list" id="list-expenses"></div>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS ==================== -->
+        <div id="view-settings" class="view-section overflow-hidden">
+            <div class="px-5 pt-6 pb-2 shrink-0">
+                <h1 class="text-[34px] font-bold mb-4 tracking-tight">設定</h1>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
+                <div class="ios-list mt-2">
+                    <div class="ios-item clickable" onclick="openPanel('panel-payments')"><span class="font-medium">支払い方法の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    <div class="ios-item clickable" onclick="openPanel('panel-categories')"><span class="font-medium">カテゴリーの管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                </div>
+                
+                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">入力・お店</h2>
+                <div class="ios-list">
+                    <div class="ios-item clickable" onclick="openPanel('panel-shortcuts')"><span class="font-medium">クイック入力 (スワイプ画面)</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    <div class="ios-item clickable" onclick="openPanel('panel-shops')"><span class="font-medium">お店リストと詳細設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                </div>
+
+                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">データ管理</h2>
+                <div class="ios-list">
+                    <div class="ios-item clickable" onclick="exportCSV()"><span class="font-medium text-[#007AFF]">家計簿を出力 (CSV/Excel形式)</span></div>
+                    <div class="ios-item clickable" onclick="exportData()"><span class="font-medium">バックアップ (JSON形式で保存)</span></div>
+                    <div class="ios-item clickable" onclick="document.getElementById('file-import').click()"><span class="font-medium text-[#FF3B30]">復元 (JSON形式を読み込み)</span></div>
+                </div>
+                <input type="file" id="file-import" accept=".json" style="display: none;" onchange="importData(event)">
+            </div>
+        </div>
+
+        <!-- === SETTINGS SUB-PANELS === -->
+        <div id="panel-payments" class="slide-panel">
+            <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-payments')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3">支払い方法</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="addItem('paymentMethods', '支払い方法を追加')">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar"><div class="ios-list" id="list-set-payments"></div></div>
+        </div>
+
+        <div id="panel-categories" class="slide-panel">
+            <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-categories')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3">カテゴリー</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="addItem('categories', 'カテゴリーを追加')">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar"><div class="ios-list" id="list-set-categories"></div></div>
+        </div>
+
+        <div id="panel-classes" class="slide-panel">
+            <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-classes')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3">お店の分類</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="addItem('shopClasses', '分類を追加 (例: 🍽️外食)')">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10"><p class="text-xs text-gray-500 mb-2 ml-2">※ ドラッグで並び替え可能。</p><div class="ios-list" id="list-set-classes"></div></div>
+        </div>
+
+        <div id="panel-shops" class="slide-panel">
+            <div class="px-4 flex items-center mb-1 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-shops')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3 whitespace-nowrap">お店リスト</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="openShopEditor(null)">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-12" id="list-set-shops-container"></div>
+        </div>
+
+        <div id="panel-shortcuts" class="slide-panel">
+            <div class="px-4 flex items-center mb-1 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-shortcuts')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3 whitespace-nowrap">クイック入力</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="openShortcutEditor(null)">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-12 mt-4"><div class="ios-list" id="list-set-shortcuts"></div></div>
+        </div>
+
+        <!-- ==================== BOTTOM NAVIGATION (5等分で固定) ==================== -->
+        <div class="glass-nav">
+            <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="stats">
+                <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 20V10M12 20V4M6 20v-6"></path></svg>
+                <span class="text-[10px] font-semibold text-gray-400 transition-colors">分析</span>
+            </div>
+            <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="calendar">
+                <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <span class="text-[10px] font-semibold text-gray-400 transition-colors">履歴</span>
+            </div>
+            <div class="flex justify-center relative">
+                <button class="btn-global-add" id="btn-global-add">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
+                </button>
+            </div>
+            <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="fixed">
+                <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <span class="text-[10px] font-semibold text-gray-400 transition-colors">固定費</span>
+            </div>
+            <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="settings">
+                <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span class="text-[10px] font-semibold text-gray-400 transition-colors">設定</span>
+            </div>
+        </div>
+
+        <!-- ==================== MODALS ==================== -->
+        <div id="modal-class-select" class="modal-sheet z-[50]">
+            <div class="px-4 flex justify-between items-center mb-2 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3 bg-white">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeAllModals()">キャンセル</button>
+                <h2 class="font-bold text-[17px]">お店の分類</h2>
+                <div class="w-[80px]"></div>
+            </div>
+            <div class="px-5 py-4 flex-1 overflow-y-auto no-scrollbar pb-24"><div id="grid-classes" class="grid grid-cols-4 gap-4 w-full"></div></div>
+        </div>
+
+        <div id="modal-shops" class="modal-sheet z-[60]">
+            <div class="px-4 flex justify-between items-center mb-2 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3 bg-white">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closeModal('modal-shops')"><span class="text-2xl leading-none -mt-1">‹</span> 分類</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3" id="title-shop-cat">お店を選択</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeAllModals()">取消</button></div>
+            </div>
+            <div class="px-4 py-2 flex-1 overflow-y-auto no-scrollbar pb-24">
+                <div class="ios-list shadow-sm" id="list-shops-select"></div>
+                <button class="w-full py-4 text-[#007AFF] font-bold bg-white rounded-xl shadow-sm mt-2 active:bg-gray-50 text-[17px]" onclick="openShopEditor(null, true)">新しくお店を作る</button>
+            </div>
+        </div>
+
+        <div id="modal-detail" class="modal-sheet bg-[#F2F2F7] z-[70]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-detail')">キャンセル</button>
+                <h2 class="font-bold text-[17px]" id="title-detail">詳細確認</h2>
+                <div class="w-[80px]"></div>
+            </div>
+            <div class="px-4 flex-1 overflow-y-auto no-scrollbar flex flex-col relative pb-8 pt-4">
+                <div class="ios-list mb-6 shadow-sm shrink-0">
+                    <div class="ios-item py-4">
+                        <span class="text-gray-900 font-medium">金額</span>
+                        <div class="flex items-center flex-grow justify-end">
+                            <input type="number" id="inp-amount" class="ios-input text-gray-900 font-bold text-[28px] p-0 h-8">
+                            <span class="ml-1 text-gray-500 font-bold text-xl">円</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ios-list shadow-sm shrink-0 mb-6">
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">日付</span><input type="date" id="inp-date" class="ios-input font-medium"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">分類</span><select id="inp-class" class="ios-input appearance-none bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">カテゴリー</span><select id="inp-cat" class="ios-input appearance-none bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">お店</span><input type="text" id="inp-shop" class="ios-input font-medium" placeholder="店名入力可" list="dl-shops"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">支払い</span><select id="inp-payment" class="ios-input appearance-none text-[#007AFF] font-medium bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">メモ</span><input type="text" id="inp-memo" class="ios-input font-medium" placeholder="追加情報..."></div>
+                </div>
+                <div id="box-delete" class="mb-6 hidden shrink-0">
+                    <button class="text-red-500 font-bold bg-white w-full py-4 rounded-xl shadow-sm active:bg-red-50 text-[17px]" onclick="deleteTransaction()">この記録を削除</button>
+                </div>
+                <div class="mt-auto pt-4 shrink-0 pb-[30px]">
+                    <button onclick="saveTransaction()" class="w-full py-[18px] bg-[#007AFF] text-white rounded-[18px] text-[20px] font-bold shadow-[0_8px_24px_rgba(0,122,255,0.35)] transition-transform active:scale-95 flex items-center justify-center gap-2 tracking-wide">保存する</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-shop-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-shop-editor')">キャンセル</button>
+                <h2 class="font-bold text-[17px]" id="title-shop-editor">お店の登録</h2>
+                <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveShopEditor()">完了</button>
+            </div>
+            <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
+                <div class="ios-list shadow-sm">
+                    <div class="ios-item"><span class="w-24 text-gray-900">店名</span><input type="text" id="ed-shop-name" class="ios-input text-left ml-0" placeholder="お店の名前"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="ed-shop-class" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="ed-shop-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="ed-shop-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="ed-shop-memo" class="ios-input text-left ml-0" placeholder="デフォルトメモ"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ★ クイック入力の設定モーダル -->
+        <div id="modal-shortcut-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-shortcut-editor')">キャンセル</button>
+                <h2 class="font-bold text-[17px]" id="title-shortcut-editor">クイック入力の設定</h2>
+                <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveShortcutEditor()">保存</button>
+            </div>
+            <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
+                <div class="ios-list shadow-sm mb-6">
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">登録名</span><input type="text" id="sh-name" class="ios-input text-left ml-0" placeholder="例: バス通勤"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">金額</span><input type="number" id="sh-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="210"></div>
+                </div>
+                <h3 class="text-xs text-gray-500 mb-2 ml-2 font-semibold">自動入力される内容</h3>
+                <div class="ios-list shadow-sm">
+                    <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="sh-class" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="sh-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">お店</span><input type="text" id="sh-shop" class="ios-input text-left ml-0" placeholder="例: 市バス" list="dl-shops"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="sh-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="sh-memo" class="ios-input text-left ml-0" placeholder=""></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ★ 自動固定費の設定モーダル -->
+        <div id="modal-fixed-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-fixed-editor')">キャンセル</button>
+                <h2 class="font-bold text-[17px]" id="title-fixed-editor">自動固定費の設定</h2>
+                <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveFixedEditor()">保存</button>
+            </div>
+            <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
+                <div class="ios-list shadow-sm mb-6">
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">登録名</span><input type="text" id="fx-name" class="ios-input text-left ml-0" placeholder="例: 家賃"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">金額</span><input type="number" id="fx-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000"></div>
+                    <div class="ios-item">
+                        <span class="w-24 text-gray-900 font-medium whitespace-nowrap">毎月の追加日</span>
+                        <div class="flex items-center flex-grow justify-end">
+                            <input type="number" id="fx-day" min="1" max="31" class="ios-input text-[#007AFF] font-bold text-right p-0 h-8 w-12" value="1">
+                            <span class="ml-1 text-gray-500 font-bold text-[17px]">日</span>
+                        </div>
+                    </div>
+                </div>
+                <h3 class="text-xs text-gray-500 mb-2 ml-2 font-semibold">自動入力される内容</h3>
+                <div class="ios-list shadow-sm">
+                    <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="fx-class" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="fx-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">お店</span><input type="text" id="fx-shop" class="ios-input text-left ml-0" placeholder="例: ○○不動産" list="dl-shops"></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="fx-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="fx-memo" class="ios-input text-left ml-0" placeholder=""></div>
+                </div>
+                <div id="box-delete-fixed" class="mb-6 hidden shrink-0 mt-6">
+                    <button class="text-red-500 font-bold bg-white w-full py-4 rounded-xl shadow-sm active:bg-red-50 text-[17px]" onclick="deleteFixedExpense()">この自動固定費を削除</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-stats-detail" class="modal-sheet z-[70] bg-[#F2F2F7]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-stats-detail')">閉じる</button>
+                <h2 class="font-bold text-[17px]" id="title-stats-detail">詳細</h2>
+                <div class="w-[60px]"></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pt-6 pb-24">
+                <div class="ios-list shadow-sm" id="list-stats-detail"></div>
+            </div>
+        </div>
+
+        <div id="custom-prompt" class="overlay z-[200]">
+            <div class="dialog-box p-5 pb-0">
+                <h3 id="prompt-title" class="font-semibold text-[17px] mb-2 text-black"></h3>
+                <input type="text" id="prompt-input" class="w-full border border-[rgba(60,60,67,0.2)] rounded-[8px] p-2 text-[16px] outline-none text-center bg-white focus:border-[#007AFF]">
+                <div class="flex border-t border-[rgba(60,60,67,0.15)] mt-4 -mx-5">
+                    <button class="dialog-btn text-[#007AFF] border-r border-[rgba(60,60,67,0.15)]" onclick="closeCustomPrompt(false)">キャンセル</button>
+                    <button class="dialog-btn text-[#007AFF] font-semibold" onclick="closeCustomPrompt(true)">OK</button>
+                </div>
+            </div>
+        </div>
+        <div id="custom-confirm" class="overlay z-[210]">
+            <div class="dialog-box p-5 pb-0">
+                <h3 id="confirm-msg" class="font-semibold text-[17px] mb-4 text-black"></h3>
+                <div class="flex border-t border-[rgba(60,60,67,0.15)] mt-2 -mx-5">
+                    <button class="dialog-btn text-[#007AFF]" onclick="closeCustomConfirm(false)">キャンセル</button>
+                    <button class="dialog-btn text-[#FF3B30] font-semibold border-l border-[rgba(60,60,67,0.15)]" onclick="closeCustomConfirm(true)">実行</button>
+                </div>
+            </div>
+        </div>
+        <div id="custom-alert" class="overlay z-[220]">
+            <div class="dialog-box p-5 pb-0">
+                <h3 id="alert-msg" class="font-semibold text-[17px] mb-4 text-black"></h3>
+                <div class="flex border-t border-[rgba(60,60,67,0.15)] mt-2 -mx-5">
+                    <button class="dialog-btn text-[#007AFF] font-semibold w-full" onclick="document.getElementById('custom-alert').classList.remove('active')">OK</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        
+        const DEFAULT_STATE = {
+          "transactions": [],
+          "shopClasses": [
+            { "id": "sc1", "name": "コンビニ", "icon": "🏪" },
+            { "id": "sc2", "name": "スーパー", "icon": "🛒" },
+            { "id": "bo51k509e", "name": "100均", "icon": "📦" },
+            { "id": "sc5", "name": "ドラッグ", "icon": "💊" },
+            { "id": "sc6", "name": "交通費", "icon": "🚆" },
+            { "id": "ugyl4om13", "name": "ネットストア", "icon": "🏬" },
+            { "id": "txn4paqk8", "name": "ファッション", "icon": "🕶️" },
+            { "id": "tepva9u9i", "name": "雑貨", "icon": "✏️" },
+            { "id": "c473fmfzt", "name": "本", "icon": "📕" },
+            { "id": "sc4", "name": "カフェ", "icon": "☕️" },
+            { "id": "sc3", "name": "食事", "icon": "🍽️" },
+            { "id": "88fs5b3a7", "name": "牛丼", "icon": "🍲" },
+            { "id": "mqc5yr49y", "name": "ハンバーガー", "icon": "🍔" },
+            { "id": "yi5f0kofc", "name": "ラーメン", "icon": "🍜" },
+            { "id": "t09mpgvy6", "name": "カレー", "icon": "🍛" },
+            { "id": "m9itdyszu", "name": "パン", "icon": "🍞" },
+            { "id": "t06j4ukgf", "name": "ケーキ", "icon": "🍓" },
+            { "id": "izkobylo2", "name": "サブスク", "icon": "📺" },
+            { "id": "nkf2cjrrn", "name": "通信費", "icon": "📱" }
+          ],
+          "categories": [
+            { "id": "c1", "name": "食費" },
+            { "id": "c2", "name": "日用品" },
+            { "id": "vn8xngnmn", "name": "衣服費" },
+            { "id": "mloyff5ts", "name": "美容費" },
+            { "id": "39768x9s9", "name": "娯楽費" },
+            { "id": "ldasjl0bv", "name": "医療費" },
+            { "id": "c3", "name": "交通費" },
+            { "id": "09335b2oc", "name": "通信費" },
+            { "id": "yxg69g4mq", "name": "光熱費" },
+            { "id": "t4gj08aw3", "name": "住居費" }
+          ],
+          "paymentMethods": [
+            { "id": "uj853b324", "name": "Olive" },
+            { "id": "p3", "name": "PayPay" },
+            { "id": "p1", "name": "現金" },
+            { "id": "grn0xefc2", "name": "ICOCA" },
+            { "id": "p2", "name": "PayPayカード" },
+            { "id": "vu94so1p1", "name": "ファミペイ" }
+          ],
+          "shops": [
+            { "id": "sh1", "name": "セブンイレブン", "classId": "sc1", "categoryId": "c1", "paymentId": "p3", "memo": "" },
+            { "id": "2az6hi3f4", "name": "ローソン", "classId": "sc1", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "t3cn1owep", "name": "ファミリーマート", "classId": "sc1", "categoryId": "c1", "paymentId": "vu94so1p1", "memo": "" },
+            { "id": "9vddiv43h", "name": "平和堂", "classId": "sc2", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "4ewlxigip", "name": "関西スーパー", "classId": "sc2", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "cngj642y3", "name": "スターバックス", "classId": "sc4", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "kigzdhmtq", "name": "コメダ珈琲", "classId": "sc4", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "a6j1vpget", "name": "カフェドクリエ", "classId": "sc4", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "vju3kc0e2", "name": "タリーズ", "classId": "sc4", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "0xhwzdmpz", "name": "からふね屋珈琲", "classId": "sc4", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "og75ymzt0", "name": "スシロー", "classId": "sc3", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "9hs13x7l7", "name": "びっくりドンキー", "classId": "sc3", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "ca3a18hre", "name": "マクドナルド", "classId": "mqc5yr49y", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "q7qynmrjk", "name": "ゼッテリア", "classId": "mqc5yr49y", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "81g55z0ga", "name": "バーガーキング", "classId": "mqc5yr49y", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "ok6dtyrev", "name": "すき家", "classId": "88fs5b3a7", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "4x806xdhu", "name": "松屋", "classId": "88fs5b3a7", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "f4ykd4nlc", "name": "吉野家", "classId": "88fs5b3a7", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "miw6a3pxq", "name": "スギ薬局", "classId": "sc5", "categoryId": "ldasjl0bv", "paymentId": "uj853b324", "memo": "" },
+            { "id": "43fz3nly0", "name": "マツモトキヨシ", "classId": "sc5", "categoryId": "ldasjl0bv", "paymentId": "uj853b324", "memo": "" },
+            { "id": "cxa4836zc", "name": "ダイコクドラッグ", "classId": "sc5", "categoryId": "ldasjl0bv", "paymentId": "uj853b324", "memo": "" },
+            { "id": "4px2whxm8", "name": "サンドラッグ", "classId": "sc5", "categoryId": "ldasjl0bv", "paymentId": "uj853b324", "memo": "" },
+            { "id": "xj45zx3s1", "name": "JR西日本", "classId": "sc6", "categoryId": "c3", "paymentId": "grn0xefc2", "memo": "" },
+            { "id": "m1kmm5nm9", "name": "京都市バス", "classId": "sc6", "categoryId": "c3", "paymentId": "grn0xefc2", "memo": "" },
+            { "id": "cnm93inec", "name": "天下一品", "classId": "yi5f0kofc", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "4b39rok8k", "name": "Amazon", "classId": "ugyl4om13", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "mcvj8dv0f", "name": "ヨドバシ", "classId": "ugyl4om13", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "wkw7jmg5a", "name": "メルカリ", "classId": "ugyl4om13", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "eu7uexvr0", "name": "ソフトバンク", "classId": "nkf2cjrrn", "categoryId": "09335b2oc", "paymentId": "p2", "memo": "" },
+            { "id": "yogl479ms", "name": "Netflix", "classId": "izkobylo2", "categoryId": "39768x9s9", "paymentId": "uj853b324", "memo": "" },
+            { "id": "t9m3wtmn3", "name": "Apple", "classId": "izkobylo2", "categoryId": "39768x9s9", "paymentId": "uj853b324", "memo": "" },
+            { "id": "07xgregsy", "name": "ドンク", "classId": "m9itdyszu", "categoryId": "c1", "paymentId": "uj853b324", "memo": "" },
+            { "id": "0hfclpl29", "name": "ダイソー", "classId": "bo51k509e", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "3wo5h00ht", "name": "セリア", "classId": "bo51k509e", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "6npgtm4w9", "name": "CanDo", "classId": "bo51k509e", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "bog5zwdpb", "name": "Standard Products", "classId": "bo51k509e", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "1u0w14chh", "name": "無印良品", "classId": "tepva9u9i", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "uocu6mw1p", "name": "ユニクロ", "classId": "txn4paqk8", "categoryId": "vn8xngnmn", "paymentId": "uj853b324", "memo": "" },
+            { "id": "wx1zxga0y", "name": "ニトリ", "classId": "tepva9u9i", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
+            { "id": "7f4wwdz3x", "name": "BookOff", "classId": "c473fmfzt", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" }
+          ],
+          "shortcuts": [
+            { "id": "q1", "name": "バス通勤", "amount": 210, "classId": "sc6", "categoryId": "c3", "shopName": "京都市バス", "paymentId": "grn0xefc2", "memo": "" }
+          ],
+          "fixedExpenses": [],
+          "lastRunDate": ""
+        };
+
+        let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+        let currentAmount = "0";
+        let activeClassId = null;
+        let editingTxnId = null;
+        let editingShopId = null;
+        let editingShortcutId = null;
+        let editingFixedId = null;
+        
+        let calTab = 'daily';
+        let calCurrentDate = new Date();
+        calCurrentDate.setHours(0,0,0,0);
+
+        let statsTab = 'monthly';
+        let statsCurrentDate = new Date();
+        statsCurrentDate.setHours(0,0,0,0);
+        
+        let promptCallback = null;
+        let confirmCallback = null;
+        let shopSortables = [];
+        let isFlowFromInput = false;
+
+        function initData() {
+            try {
+                const stored = localStorage.getItem('premium_tracker_v13');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    state.transactions = parsed.transactions || [];
+                    state.shopClasses = parsed.shopClasses || DEFAULT_STATE.shopClasses;
+                    state.categories = parsed.categories || DEFAULT_STATE.categories;
+                    state.paymentMethods = parsed.paymentMethods || DEFAULT_STATE.paymentMethods;
+                    state.shops = parsed.shops || DEFAULT_STATE.shops;
+                    state.shortcuts = parsed.shortcuts || DEFAULT_STATE.shortcuts;
+                    state.fixedExpenses = parsed.fixedExpenses || [];
+                    state.lastRunDate = parsed.lastRunDate || "";
+                }
+            } catch (e) { console.error("Load failed", e); }
+
+            processFixedExpenses(); // ★起動時に自動追加をチェック
+        }
+        function saveData() { localStorage.setItem('premium_tracker_v13', JSON.stringify(state)); }
+
+        // --- ★ 自動固定費処理ロジック ---
+        function processFixedExpenses() {
+            if (!state.fixedExpenses || state.fixedExpenses.length === 0) {
+                // 固定費設定がない場合は、最終実行日だけ更新しておく
+                const d = new Date();
+                state.lastRunDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                saveData();
+                return;
+            }
+            
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            
+            if (!state.lastRunDate) {
+                state.lastRunDate = todayStr;
+                saveData();
+                return;
+            }
+
+            if (state.lastRunDate === todayStr) return; // 既に今日実行済み
+
+            const lastRun = new Date(state.lastRunDate);
+            lastRun.setHours(0,0,0,0);
+            const today = new Date(now);
+            today.setHours(0,0,0,0);
+
+            let currentDate = new Date(lastRun);
+            currentDate.setDate(currentDate.getDate() + 1); // 前回実行の翌日からチェック
+
+            let addedCount = 0;
+
+            while (currentDate <= today) {
+                const y = currentDate.getFullYear();
+                const m = currentDate.getMonth() + 1;
+                const d = currentDate.getDate();
+                const lastDayOfMonth = new Date(y, m, 0).getDate();
+
+                state.fixedExpenses.forEach(fe => {
+                    let targetDay = parseInt(fe.day);
+                    if (isNaN(targetDay)) targetDay = 1;
+                    
+                    // 設定日がその月の末日を超える場合（例: 2月で設定日が31日）は、その月の末日に実行する
+                    if (targetDay > lastDayOfMonth) {
+                        targetDay = lastDayOfMonth;
+                    }
+
+                    if (d === targetDay) {
+                        const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                        state.transactions.push({
+                            id: generateId(),
+                            amount: fe.amount,
+                            date: dateStr,
+                            classId: fe.classId,
+                            categoryId: fe.categoryId,
+                            shopName: fe.shopName,
+                            paymentId: fe.paymentId,
+                            memo: fe.memo || '自動追加(固定費)',
+                            ts: Date.now() + Math.random() // 同時追加時のソート崩れ防止
+                        });
+                        addedCount++;
+                    }
+                });
+
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            state.lastRunDate = todayStr;
+            saveData();
+            
+            if (addedCount > 0) {
+                showAlert(`自動固定費が ${addedCount}件 履歴に追加されました。`);
+            }
+        }
+
+        // --- Custom Dialogs ---
+        function showPrompt(title, defaultVal, cb) { document.getElementById('prompt-title').textContent = title; const inp = document.getElementById('prompt-input'); inp.value = defaultVal || ''; document.getElementById('custom-prompt').classList.add('active'); setTimeout(() => inp.focus(), 50); promptCallback = cb; }
+        function closeCustomPrompt(isOk) { document.getElementById('custom-prompt').classList.remove('active'); if (isOk && promptCallback) promptCallback(document.getElementById('prompt-input').value.trim()); }
+        function showConfirm(msg, cb) { document.getElementById('confirm-msg').textContent = msg; document.getElementById('custom-confirm').classList.add('active'); confirmCallback = cb; }
+        function closeCustomConfirm(isOk) { document.getElementById('custom-confirm').classList.remove('active'); if (isOk && confirmCallback) confirmCallback(); }
+        function showAlert(msg) { document.getElementById('alert-msg').textContent = msg; document.getElementById('custom-alert').classList.add('active'); }
+
+        function closeAllModals() { document.querySelectorAll('.modal-sheet').forEach(m => m.classList.remove('active')); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        function openPanel(id) { document.getElementById(id).classList.add('active'); renderPanelLists(); }
+        function closePanel(id) { document.getElementById(id).classList.remove('active'); }
+
+        // --- Navigation ---
+        function updateNavColors(target, subTarget) {
+            document.querySelectorAll('.nav-link').forEach(btn => {
+                const t = btn.getAttribute('data-target');
+                const sub = btn.getAttribute('data-sub');
+                let isActive = false;
+                if (target === 'main') {
+                    if (subTarget === 'shortcuts' && sub === 'shortcuts') isActive = true;
+                } else {
+                    if (t === target) isActive = true;
+                }
+                const svg = btn.querySelector('svg'); const span = btn.querySelector('span');
+                if(svg && span) {
+                    svg.classList.toggle('text-[#007AFF]', isActive); span.classList.toggle('text-[#007AFF]', isActive);
+                    svg.classList.toggle('text-gray-400', !isActive); span.classList.toggle('text-gray-400', !isActive);
+                }
+            });
+        }
+
+        function resetMainView() { currentAmount = "0"; updateAmount(); currentTranslate = 0; document.getElementById('swipe-container').style.transform = `translateX(0%)`; }
+
+        function switchView(target, subTarget) {
+            closeAllModals();
+            document.querySelectorAll('.slide-panel, .overlay').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${target}`).classList.add('active');
+            updateNavColors(target, subTarget);
+            if (target === 'calendar') renderCalendar();
+            if (target === 'main') renderShortcuts();
+            if (target === 'stats') renderStats();
+            if (target === 'fixed') renderFixedExpenses(); // ★ 固定費タブの描画
+        }
+
+        document.getElementById('btn-global-add').addEventListener('click', () => { resetMainView(); switchView('main', 'input'); });
+
+        document.querySelectorAll('.nav-link').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget.getAttribute('data-target');
+                const sub = e.currentTarget.getAttribute('data-sub');
+                if (target === 'main' && sub === 'shortcuts') { currentTranslate = -50; document.getElementById('swipe-container').style.transform = `translateX(-50%)`; }
+                switchView(target, sub);
+            });
+        });
+
+        // --- Swipe Logic (Main) ---
+        const swipeContainer = document.getElementById('swipe-container');
+        let startX = 0, startY = 0; let currentTranslate = 0; let isDragging = false; let isSwiping = false; let swipeDirection = null; let dragOffset = 0; let preventClick = false; 
+
+        document.addEventListener('click', (e) => { if (preventClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+
+        function dragStart(e) {
+            if (e.target.closest('input') || e.target.closest('select')) return;
+            startX = e.clientX || (e.touches && e.touches[0].clientX); startY = e.clientY || (e.touches && e.touches[0].clientY);
+            isDragging = true; isSwiping = false; swipeDirection = null; swipeContainer.style.transition = 'none';
+        }
+
+        function dragMove(e) {
+            if (!isDragging) return;
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX); const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            const diffX = clientX - startX; const diffY = clientY - startY;
+            if (!isSwiping) { if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) { isSwiping = true; swipeDirection = Math.abs(diffX) > Math.abs(diffY) ? 'h' : 'v'; } else { return; } }
+            if (swipeDirection === 'v') { isDragging = false; swipeContainer.style.transition = 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)'; swipeContainer.style.transform = `translateX(${currentTranslate}%)`; return; }
+            if (e.cancelable) e.preventDefault(); 
+            dragOffset = (diffX / swipeContainer.offsetWidth) * 100; let target = currentTranslate + dragOffset; if (target > 0) target = 0; if (target < -50) target = -50;
+            swipeContainer.style.transform = `translateX(${target}%)`;
+        }
+
+        function dragEnd(e) {
+            if (!isDragging) return; isDragging = false;
+            swipeContainer.style.transition = 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)';
+            if (Math.abs(dragOffset) > 2) { preventClick = true; setTimeout(() => { preventClick = false; }, 50); }
+            if (currentTranslate === 0 && dragOffset < -5) { currentTranslate = -50; } else if (currentTranslate === -50 && dragOffset > 5) { currentTranslate = 0; }
+            swipeContainer.style.transform = `translateX(${currentTranslate}%)`; dragOffset = 0;
+            updateNavColors('main', currentTranslate === -50 ? 'shortcuts' : 'input');
+        }
+
+        swipeContainer.addEventListener('pointerdown', dragStart); window.addEventListener('pointermove', dragMove, {passive: false});
+        window.addEventListener('pointerup', dragEnd); window.addEventListener('pointercancel', dragEnd);
+
+        let wheelAccumulator = 0; let wheelTimer = null;
+        swipeContainer.addEventListener('wheel', (e) => {
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                if (e.cancelable) e.preventDefault(); wheelAccumulator += e.deltaX; clearTimeout(wheelTimer);
+                wheelTimer = setTimeout(() => {
+                    if (currentTranslate === 0 && wheelAccumulator > 30) { currentTranslate = -50; } else if (currentTranslate === -50 && wheelAccumulator < -30) { currentTranslate = 0; }
+                    swipeContainer.style.transition = 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)'; swipeContainer.style.transform = `translateX(${currentTranslate}%)`; wheelAccumulator = 0;
+                    updateNavColors('main', currentTranslate === -50 ? 'shortcuts' : 'input');
+                }, 40);
+            }
+        }, {passive: false});
+
+        function attachSwipeForView(elId, onLeft, onRight) {
+            const el = document.getElementById(elId); let sX = 0, sY = 0;
+            el.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; }, {passive: true});
+            el.addEventListener('touchend', e => { const diffX = e.changedTouches[0].clientX - sX; const diffY = e.changedTouches[0].clientY - sY; if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) { if (diffX > 0) onRight(); else onLeft(); } }, {passive: true});
+        }
+
+        window.exportCSV = () => {
+            let csvContent = "\uFEFF"; csvContent += "日付,分類,カテゴリー,お店,支払い方法,金額,メモ\n";
+            const sortedTxns = [...state.transactions].sort((a, b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts);
+            sortedTxns.forEach(t => {
+                const cls = state.shopClasses.find(c => c.id === t.classId) || {name: ''}; const cat = state.categories.find(c => c.id === t.categoryId) || {name: ''}; const pay = state.paymentMethods.find(p => p.id === t.paymentId) || {name: ''};
+                const row = [t.date, cls.name, cat.name, t.shopName, pay.name, t.amount, t.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
+            const dl = document.createElement('a'); dl.href = url; dl.download = `家計簿データ_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(dl); dl.click(); document.body.removeChild(dl); URL.revokeObjectURL(url);
+        };
+        window.exportData = () => { const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2)); const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "expense_tracker_backup.json"); document.body.appendChild(dl); dl.click(); dl.remove(); };
+        window.importData = (event) => { const file = event.target.files[0]; if (!file) return; showConfirm("現在のデータはすべて上書きされます。復元しますか？", () => { const reader = new FileReader(); reader.onload = function(e) { try { const imported = JSON.parse(e.target.result); if(imported.transactions && imported.shopClasses) { state = imported; saveData(); showAlert("データの復元が完了しました"); setTimeout(() => location.reload(), 1500); } else { showAlert("正しいバックアップファイルではありません"); } } catch(err) { showAlert("ファイルの読み込みに失敗しました"); } }; reader.readAsText(file); }); event.target.value = ''; };
+
+        function updateAmount() { document.getElementById('display-amount').textContent = Number(currentAmount).toLocaleString('ja-JP'); document.getElementById('btn-next').disabled = (currentAmount === "0"); }
+        function handleNumInput(val) { if (val === 'C') currentAmount = "0"; else if (val === 'BACK') { currentAmount = currentAmount.slice(0, -1); if (currentAmount === "") currentAmount = "0"; } else { if (currentAmount === "0") currentAmount = val; else if (currentAmount.length < 8) currentAmount += val; } updateAmount(); }
+        document.querySelectorAll('.numpad-btn').forEach(btn => { btn.addEventListener('click', (e) => { if(preventClick) return; handleNumInput(e.currentTarget.getAttribute('data-val')); if (navigator.vibrate) navigator.vibrate(5); }); });
+
+        function populateShopDatalist() { const dl = document.getElementById('dl-shops'); dl.innerHTML = ''; [...new Set(state.shops.map(s => s.name))].forEach(name => { const opt = document.createElement('option'); opt.value = name; dl.appendChild(opt); }); }
+
+        function renderShortcuts() {
+            const list = document.getElementById('grid-shortcuts'); list.innerHTML = '';
+            if (state.shortcuts.length === 0) { list.innerHTML = `<div class="col-span-2 text-center text-gray-400 text-[14px] py-10 mt-10">設定からクイック入力を<br>追加してください</div>`; return; }
+            state.shortcuts.forEach(sc => {
+                const cls = state.shopClasses.find(c => c.id === sc.classId) || { icon: '📦' }; const btn = document.createElement('div'); btn.className = "shortcut-card"; btn.onclick = () => useShortcut(sc);
+                btn.innerHTML = `<div class="flex items-center justify-between w-full"><span class="text-[32px] leading-none">${cls.icon}</span></div><div class="flex flex-col items-start w-full mt-4"><span class="text-gray-900 font-bold truncate w-full text-[15px] tracking-tight text-left mb-1">${sc.name}</span><span class="text-[#007AFF] font-extrabold text-[22px] tracking-tight">¥${sc.amount.toLocaleString()}</span></div>`; list.appendChild(btn);
+            });
+        }
+        function useShortcut(sc) { currentAmount = sc.amount.toString(); updateAmount(); openDetailModal(null, null, sc); }
+
+        function proceedToClassSelect() { if (currentAmount === "0") return; const grid = document.getElementById('grid-classes'); grid.innerHTML = ''; state.shopClasses.forEach(cls => { const btn = document.createElement('div'); btn.className = 'class-btn'; btn.innerHTML = `<span class="class-btn-icon">${cls.icon}</span><span class="class-btn-text">${cls.name}</span>`; btn.onclick = () => openShopSelect(cls.id); grid.appendChild(btn); }); document.getElementById('modal-class-select').classList.add('active'); }
+        function openShopSelect(classId) {
+            activeClassId = classId; const cls = state.shopClasses.find(c => c.id === classId); document.getElementById('title-shop-cat').textContent = cls ? cls.name : 'お店を選択'; const list = document.getElementById('list-shops-select'); list.innerHTML = ''; const noShopDiv = document.createElement('div'); noShopDiv.className = 'ios-item clickable cursor-pointer bg-gray-50'; noShopDiv.innerHTML = `<span class="font-medium text-gray-500">お店を指定しない</span>`; noShopDiv.onclick = () => openDetailModal(null); list.appendChild(noShopDiv); const relevantShops = state.shops.filter(s => s.classId === classId);
+            if (relevantShops.length > 0) { relevantShops.forEach(shop => { const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.innerHTML = `<span class="font-medium text-gray-900">${shop.name}</span>`; div.onclick = () => openDetailModal(shop); list.appendChild(div); }); } else { const empty = document.createElement('div'); empty.className = 'p-6 text-center text-gray-400 text-[14px]'; empty.innerHTML = `登録されているお店がありません<br>下のボタンから追加してください`; list.appendChild(empty); } document.getElementById('modal-shops').classList.add('active');
+        }
+
+        function populateSelect(selectId, items, selectedId) { const sel = document.getElementById(selectId); sel.innerHTML = ''; items.forEach(i => { const opt = document.createElement('option'); opt.value = i.id; opt.textContent = i.name; if (i.id === selectedId) opt.selected = true; sel.appendChild(opt); }); }
+
+        function openDetailModal(shopObj = null, txnToEdit = null, shortcutObj = null) {
+            closeModal('modal-shops'); closeModal('modal-class-select'); editingTxnId = txnToEdit ? txnToEdit.id : null; const title = document.getElementById('title-detail'); const delBox = document.getElementById('box-delete'); populateSelect('inp-class', state.shopClasses, null); populateSelect('inp-cat', state.categories, null); populateSelect('inp-payment', state.paymentMethods, null); populateShopDatalist(); 
+            const d = new Date(); const todayDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            if (editingTxnId) { title.textContent = '編集'; delBox.classList.remove('hidden'); delBox.classList.add('block'); document.getElementById('inp-amount').value = txnToEdit.amount; document.getElementById('inp-date').value = txnToEdit.date; document.getElementById('inp-class').value = txnToEdit.classId; document.getElementById('inp-cat').value = txnToEdit.categoryId; document.getElementById('inp-shop').value = txnToEdit.shopName; document.getElementById('inp-payment').value = txnToEdit.paymentId; document.getElementById('inp-memo').value = txnToEdit.memo; } 
+            else if (shortcutObj) { title.textContent = shortcutObj.name; delBox.classList.add('hidden'); delBox.classList.remove('block'); document.getElementById('inp-amount').value = shortcutObj.amount; document.getElementById('inp-date').value = todayDate; document.getElementById('inp-class').value = shortcutObj.classId; document.getElementById('inp-cat').value = shortcutObj.categoryId; document.getElementById('inp-shop').value = shortcutObj.shopName; document.getElementById('inp-payment').value = shortcutObj.paymentId; document.getElementById('inp-memo').value = shortcutObj.memo; } 
+            else { title.textContent = '詳細確認'; delBox.classList.add('hidden'); delBox.classList.remove('block'); document.getElementById('inp-amount').value = currentAmount === "0" ? "" : currentAmount; document.getElementById('inp-date').value = todayDate; if (shopObj) { document.getElementById('inp-class').value = shopObj.classId; document.getElementById('inp-cat').value = shopObj.categoryId; document.getElementById('inp-payment').value = shopObj.paymentId; document.getElementById('inp-shop').value = shopObj.name; document.getElementById('inp-memo').value = shopObj.memo; } else { document.getElementById('inp-class').value = activeClassId; document.getElementById('inp-shop').value = ""; document.getElementById('inp-memo').value = ""; } }
+            document.getElementById('modal-detail').classList.add('active');
+        }
+
+        function saveTransaction() {
+            const amt = parseInt(document.getElementById('inp-amount').value); if (isNaN(amt) || amt <= 0) return;
+            const newTxn = { id: editingTxnId || generateId(), amount: amt, date: document.getElementById('inp-date').value, classId: document.getElementById('inp-class').value, categoryId: document.getElementById('inp-cat').value, shopName: document.getElementById('inp-shop').value.trim(), paymentId: document.getElementById('inp-payment').value, memo: document.getElementById('inp-memo').value.trim(), ts: editingTxnId ? state.transactions.find(t=>t.id===editingTxnId).ts : Date.now() };
+            if (editingTxnId) { const idx = state.transactions.findIndex(t => t.id === editingTxnId); if (idx > -1) state.transactions[idx] = newTxn; } else { state.transactions.push(newTxn); }
+            saveData(); closeAllModals(); resetMainView(); switchView('calendar');
+        }
+
+        function deleteTransaction() { showConfirm("この記録を削除しますか？", () => { state.transactions = state.transactions.filter(t => t.id !== editingTxnId); saveData(); closeAllModals(); renderCalendar(); }); }
+
+        function setCalTab(tab, idx) { calTab = tab; document.getElementById('cal-seg-indicator').style.transform = `translateX(${idx * 100}%)`; document.querySelectorAll('.cal-seg-btn').forEach((b, i) => { b.classList.toggle('text-gray-500', i !== idx); b.classList.toggle('text-black', i === idx); }); renderCalendar(); }
+        function shiftDate(offset) { if (calTab === 'daily') calCurrentDate.setDate(calCurrentDate.getDate() + offset); else if (calTab === 'weekly') calCurrentDate.setDate(calCurrentDate.getDate() + offset * 7); else if (calTab === 'monthly') calCurrentDate.setMonth(calCurrentDate.getMonth() + offset); renderCalendar(); }
+        function resetToToday() { calCurrentDate = new Date(); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
+        function jumpToDate(dateStr) { if(!dateStr) return; calCurrentDate = new Date(dateStr); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
+
+        function renderCalendar() {
+            const list = document.getElementById('list-expenses'); list.innerHTML = '';
+            const target = new Date(calCurrentDate); const y = target.getFullYear(); const m = target.getMonth(); const d = target.getDate();
+            let filtered = []; let periodLabel = '';
+            if (calTab === 'daily') { const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; filtered = state.transactions.filter(t => t.date === dateStr); const dayStr = ['日','月','火','水','木','金','土'][target.getDay()]; periodLabel = `${y}年${m+1}月${d}日 (${dayStr})`; } 
+            else if (calTab === 'weekly') { const wStart = new Date(target); wStart.setDate(target.getDate() - target.getDay()); const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate() + 6); filtered = state.transactions.filter(t => { const td = new Date(t.date); td.setHours(0,0,0,0); return td >= wStart && td <= wEnd; }); periodLabel = `${wStart.getMonth()+1}/${wStart.getDate()} 〜 ${wEnd.getMonth()+1}/${wEnd.getDate()}`; } 
+            else if (calTab === 'monthly') { const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`; filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); periodLabel = `${y}年${m+1}月`; }
+            document.getElementById('lbl-period').textContent = periodLabel; filtered.sort((a,b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts);
+            let total = 0;
+            if (filtered.length === 0) list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium">データがありません</div>`;
+            else {
+                filtered.forEach(t => {
+                    total += t.amount; const dt = new Date(t.date); const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'}; const displayTitle = t.shopName || catObj.name;
+                    const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openDetailModal(null, t);
+                    div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-10 shrink-0"><span class="text-[10px] text-gray-400 font-bold uppercase">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span><span class="text-sm font-bold text-gray-700">${dt.getDate()}</span></div><div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full"><span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${displayTitle}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate">${catObj.name} ${t.memo ? '・'+t.memo : ''}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span><span class="text-[10px] text-[#007AFF] mt-0.5">${payObj.name}</span></div>`;
+                    list.appendChild(div);
+                });
+            }
+            document.getElementById('lbl-total').textContent = total.toLocaleString();
+        }
+
+        function setStatsTab(tab, idx) { statsTab = tab; document.getElementById('stats-seg-indicator').style.transform = `translateX(${idx * 100}%)`; document.querySelectorAll('.stats-seg-btn').forEach((b, i) => { b.classList.toggle('text-gray-500', i !== idx); b.classList.toggle('text-black', i === idx); }); renderStats(); }
+        function shiftStatsDate(offset) { if (statsTab === 'monthly') statsCurrentDate.setMonth(statsCurrentDate.getMonth() + offset); else statsCurrentDate.setFullYear(statsCurrentDate.getFullYear() + offset); renderStats(); }
+
+        function renderStats() {
+            const container = document.getElementById('stats-content'); container.innerHTML = '';
+            const target = new Date(statsCurrentDate); const y = target.getFullYear(); const m = target.getMonth();
+            let filtered = []; let periodLabel = '';
+            if (statsTab === 'monthly') { const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`; filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); periodLabel = `${y}年${m+1}月`; } 
+            else { const yearPrefix = `${y}-`; filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix)); periodLabel = `${y}年`; }
+            document.getElementById('lbl-stats-period').textContent = periodLabel;
+            let total = 0; const catMap = {}; const payMap = {}; const shopAmtMap = {}; const shopCntMap = {};
+            filtered.forEach(t => {
+                total += t.amount; catMap[t.categoryId] = (catMap[t.categoryId] || 0) + t.amount; payMap[t.paymentId] = (payMap[t.paymentId] || 0) + t.amount;
+                const shopName = t.shopName || '未指定'; shopAmtMap[shopName] = (shopAmtMap[shopName] || 0) + t.amount; shopCntMap[shopName] = (shopCntMap[shopName] || 0) + 1;
+            });
+            document.getElementById('lbl-stats-total').textContent = total.toLocaleString();
+            if (total === 0) { container.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium">データがありません</div>`; return; }
+
+            function buildSection(title, mapObj, idResolver, isCount = false) {
+                const arr = Object.keys(mapObj).map(id => { let name = id; if (idResolver) { const item = idResolver.find(x => x.id === id); name = item ? item.name : '不明'; } return { name, val: mapObj[id] }; }).sort((a,b) => b.val - a.val);
+                if (arr.length === 0) return ''; const maxVal = arr[0].val; const top5 = arr.slice(0, 5);
+                let html = `<div class="bg-white rounded-2xl p-4 mb-5 shadow-sm border border-[rgba(0,0,0,0.03)]"><h2 class="text-[15px] font-bold text-gray-900 mb-4">${title}</h2><div class="flex flex-col gap-3">`;
+                top5.forEach(item => { const pct = Math.max((item.val / maxVal) * 100, 1); const displayVal = isCount ? `${item.val}回` : `¥${item.val.toLocaleString()}`; html += `<div class="flex flex-col"><div class="flex justify-between items-end mb-1"><span class="text-[13px] font-medium text-gray-700 truncate w-3/5">${item.name}</span><span class="text-[14px] font-bold text-gray-900">${displayVal}</span></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-[6px] rounded-full transition-all duration-500" style="width: ${pct}%"></div></div></div>`; });
+                html += `</div>`; if (arr.length > 5) { const dataStr = encodeURIComponent(JSON.stringify(arr)); html += `<button onclick="openStatsDetail('${title}', '${dataStr}', ${isCount})" class="w-full mt-4 py-2.5 bg-gray-50 text-[#007AFF] font-bold text-[14px] rounded-xl active:bg-gray-100">すべて見る</button>`; }
+                html += `</div>`; return html;
+            }
+            container.innerHTML = buildSection('カテゴリー別', catMap, state.categories) + buildSection('支払い方法別', payMap, state.paymentMethods) + buildSection('お店別 (金額)', shopAmtMap, null) + buildSection('お店別 (利用回数)', shopCntMap, null, true);
+        }
+
+        window.openStatsDetail = (title, dataStr, isCount) => {
+            const arr = JSON.parse(decodeURIComponent(dataStr)); document.getElementById('title-stats-detail').textContent = title; const list = document.getElementById('list-stats-detail'); list.innerHTML = '';
+            const maxVal = arr[0].val; const totalVal = arr.reduce((sum, item) => sum + item.val, 0);
+            arr.forEach(item => {
+                const pct = Math.max((item.val / maxVal) * 100, 1); const share = Math.round((item.val / totalVal) * 100); const displayVal = isCount ? `${item.val}回` : `¥${item.val.toLocaleString()}`;
+                const div = document.createElement('div'); div.className = "ios-item flex-col items-stretch py-3 px-0 border-none bg-transparent mb-1";
+                div.innerHTML = `<div class="flex justify-between items-center mb-1.5"><span class="font-medium text-[15px] text-gray-900 truncate w-1/2">${item.name}</span><div class="text-right"><span class="font-bold text-[15px] text-gray-900">${displayVal}</span><span class="text-[11px] text-gray-400 ml-1 inline-block w-8 text-right">${share}%</span></div></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-full rounded-full" style="width: ${pct}%"></div></div>`;
+                list.appendChild(div);
+            });
+            document.getElementById('modal-stats-detail').classList.add('active');
+        };
+
+        // --- ★ Fixed Expenses UI Logic ---
+        function renderFixedExpenses() {
+            const list = document.getElementById('list-fixed-expenses'); list.innerHTML = '';
+            if (!state.fixedExpenses || state.fixedExpenses.length === 0) { list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium text-[14px]">登録された自動固定費はありません</div>`; return; }
+            
+            const sorted = [...state.fixedExpenses].sort((a,b) => a.day - b.day);
+            const containerDiv = document.createElement('div'); containerDiv.className = 'ios-list shadow-sm';
+            
+            sorted.forEach(fe => {
+                const cls = state.shopClasses.find(c => c.id === fe.classId) || { icon: '📦' };
+                const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openFixedEditor(fe.id);
+                div.innerHTML = `
+                    <div class="flex items-center gap-3 w-2/3">
+                        <div class="flex flex-col items-center justify-center w-[46px] shrink-0 bg-[#F2F2F7] rounded-lg py-1.5">
+                            <span class="text-[10px] text-gray-500 font-bold uppercase leading-none">毎月</span>
+                            <span class="text-[16px] font-bold text-gray-900 leading-none mt-1">${fe.day}日</span>
+                        </div>
+                        <div class="flex flex-col overflow-hidden w-full pl-1">
+                            <span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${fe.name}</span>
+                            <span class="text-[11px] text-gray-500 mt-0.5 truncate">${cls.icon} ${fe.shopName || 'お店未指定'}</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end shrink-0">
+                        <span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${fe.amount.toLocaleString()}</span>
+                    </div>`;
+                containerDiv.appendChild(div);
+            });
+            list.appendChild(containerDiv);
+        }
+
+        window.openFixedEditor = (id = null) => {
+            editingFixedId = id; document.getElementById('title-fixed-editor').textContent = id ? '自動固定費の編集' : '新しい自動固定費'; populateSelect('fx-class', state.shopClasses, null); populateSelect('fx-cat', state.categories, null); populateSelect('fx-pay', state.paymentMethods, null); populateShopDatalist();
+            const delBox = document.getElementById('box-delete-fixed');
+            if (id && typeof id === 'string') {
+                delBox.classList.remove('hidden'); delBox.classList.add('block');
+                const s = state.fixedExpenses.find(x => x.id === id);
+                if(s) { document.getElementById('fx-name').value = s.name; document.getElementById('fx-amount').value = s.amount; document.getElementById('fx-day').value = s.day; document.getElementById('fx-class').value = s.classId; document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-shop').value = s.shopName || ''; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || ''; }
+            } else {
+                editingFixedId = null; delBox.classList.add('hidden'); delBox.classList.remove('block');
+                document.getElementById('fx-name').value = ""; document.getElementById('fx-amount').value = ""; document.getElementById('fx-day').value = "1"; document.getElementById('fx-shop').value = ""; document.getElementById('fx-memo').value = "";
+                if(state.shopClasses.length > 0) document.getElementById('fx-class').value = state.shopClasses[0].id; if(state.categories.length > 0) document.getElementById('fx-cat').value = state.categories[0].id; if(state.paymentMethods.length > 0) document.getElementById('fx-pay').value = state.paymentMethods[0].id;
+            }
+            document.getElementById('modal-fixed-editor').classList.add('active');
+        };
+
+        window.saveFixedEditor = () => {
+            const name = document.getElementById('fx-name').value.trim(); const amt = parseInt(document.getElementById('fx-amount').value); const day = parseInt(document.getElementById('fx-day').value);
+            if (!name || isNaN(amt) || amt <= 0 || isNaN(day) || day < 1 || day > 31) { showAlert("登録名、正しい金額、1〜31の日付を入力してください"); return; }
+            const newFE = { id: editingFixedId || generateId(), name: name, amount: amt, day: day, classId: document.getElementById('fx-class').value, categoryId: document.getElementById('fx-cat').value, shopName: document.getElementById('fx-shop').value.trim(), paymentId: document.getElementById('fx-pay').value, memo: document.getElementById('fx-memo').value.trim() };
+            if (editingFixedId) { const idx = state.fixedExpenses.findIndex(x => x.id === editingFixedId); if(idx > -1) state.fixedExpenses[idx] = newFE; } else { state.fixedExpenses.push(newFE); }
+            saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses();
+        };
+
+        window.deleteFixedExpense = () => { showConfirm("この自動固定費を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
+
+        let sortables = {};
+        function buildSortableList(containerId, arrayName, formatHTML, clickActionStr) {
+            const list = document.getElementById(containerId); list.innerHTML = '';
+            state[arrayName].forEach(item => {
+                const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', item.id); const onClick = clickActionStr ? clickActionStr.replace('{id}', item.id) : '';
+                div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1" onclick="${onClick}"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('${arrayName}', '${item.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button>${formatHTML(item)}</div><div class="drag-handle shrink-0 w-12">≡</div>`;
+                list.appendChild(div);
+            });
+            if(sortables[containerId]) sortables[containerId].destroy();
+            sortables[containerId] = new Sortable(list, { handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50', onEnd: function (evt) { const item = state[arrayName].splice(evt.oldIndex, 1)[0]; state[arrayName].splice(evt.newIndex, 0, item); saveData(); if(arrayName === 'shortcuts') renderShortcuts(); } });
+        }
+
+        function renderGroupedShopsList() {
+            const container = document.getElementById('list-set-shops-container'); container.innerHTML = ''; shopSortables.forEach(s => s.destroy()); shopSortables = [];
+            state.shopClasses.forEach(cls => {
+                const header = document.createElement('h3'); header.className = "text-[12px] font-semibold text-gray-500 mb-1 mt-6 ml-2 tracking-wider"; header.textContent = cls.icon + ' ' + cls.name; container.appendChild(header);
+                const listDiv = document.createElement('div'); listDiv.className = "ios-list mb-0 pb-1 pt-1 min-h-[40px] rounded-[12px]"; listDiv.style.backgroundColor = 'var(--ios-card)'; listDiv.setAttribute('data-class-id', cls.id);
+                const classShops = state.shops.filter(s => s.classId === cls.id);
+                if (classShops.length === 0) { const empty = document.createElement('div'); empty.className = 'empty-zone'; empty.textContent = 'ドラッグして追加'; listDiv.appendChild(empty); }
+                classShops.forEach(shop => {
+                    const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', shop.id);
+                    div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1" onclick="openShopEditor('${shop.id}')"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('shops', '${shop.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button><span class="font-medium truncate text-gray-900">${shop.name}</span></div><div class="drag-handle shrink-0 w-12">≡</div>`;
+                    listDiv.appendChild(div);
+                });
+                container.appendChild(listDiv);
+                const sortable = new Sortable(listDiv, {
+                    group: 'sharedShops', handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50',
+                    onStart: function(evt) { document.querySelectorAll('.empty-zone').forEach(el => el.style.display = 'none'); },
+                    onEnd: function(evt) { const shopObj = state.shops.find(s => s.id === evt.item.getAttribute('data-id')); if(shopObj) shopObj.classId = evt.to.getAttribute('data-class-id'); const newShopsOrder = []; document.querySelectorAll('#list-set-shops-container .ios-item').forEach(el => { const sObj = state.shops.find(s => s.id === el.getAttribute('data-id')); if(sObj) newShopsOrder.push(sObj); }); state.shops = newShopsOrder; saveData(); renderGroupedShopsList(); }
+                });
+                shopSortables.push(sortable);
+            });
+        }
+
+        window.deleteItem = (arrayName, id) => showConfirm("削除しますか？", () => { state[arrayName] = state[arrayName].filter(i=>i.id!==id); saveData(); renderPanelLists(); if(arrayName === 'shortcuts') renderShortcuts(); });
+        window.renameItem = (arrayName, id) => {
+            const item = state[arrayName].find(i=>i.id===id); if(!item) return; showPrompt(arrayName === 'shopClasses' ? "分類とアイコン (例: 🍽️外食)" : "新しい名前", arrayName === 'shopClasses' ? (item.icon + ' ' + item.name) : item.name, val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } item.icon = icon; item.name = name; } else { item.name = val.trim(); } saveData(); renderPanelLists(); } });
+        };
+        window.addItem = (arrayName, promptTitle) => { showPrompt(promptTitle, "", val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } state[arrayName].push({id: generateId(), name: name, icon: icon}); } else { state[arrayName].push({id: generateId(), name: val.trim()}); } saveData(); renderPanelLists(); } }); };
+
+        function renderPanelLists() {
+            buildSortableList('list-set-payments', 'paymentMethods', i => `<span class="font-medium truncate text-gray-900">${i.name}</span>`, `renameItem('paymentMethods', '{id}')`);
+            buildSortableList('list-set-categories', 'categories', i => `<span class="font-medium truncate text-gray-900">${i.name}</span>`, `renameItem('categories', '{id}')`);
+            buildSortableList('list-set-classes', 'shopClasses', i => `<span class="font-medium truncate text-[17px] text-gray-900"><span class="text-xl mr-2">${i.icon}</span>${i.name}</span>`, `renameItem('shopClasses', '{id}')`);
+            buildSortableList('list-set-shortcuts', 'shortcuts', i => `<div class="flex flex-col"><span class="font-medium text-gray-900 truncate">${i.name} <span class="text-[#007AFF] text-sm ml-1">¥${i.amount.toLocaleString()}</span></span><span class="text-[11px] text-gray-500">${i.shopName || 'お店指定なし'}</span></div>`, `openShortcutEditor('{id}')`);
+            renderGroupedShopsList();
+        }
+
+        window.openShopEditor = (id = null, fromFlow = false) => {
+            isFlowFromInput = fromFlow; editingShopId = id; document.getElementById('title-shop-editor').textContent = id ? 'お店の編集' : '新しいお店の登録'; populateSelect('ed-shop-class', state.shopClasses, null); populateSelect('ed-shop-cat', state.categories, null); populateSelect('ed-shop-pay', state.paymentMethods, null);
+            if (id && typeof id === 'string') { const s = state.shops.find(x => x.id === id); if(s) { document.getElementById('ed-shop-name').value = s.name; document.getElementById('ed-shop-class').value = s.classId; document.getElementById('ed-shop-cat').value = s.categoryId; document.getElementById('ed-shop-pay').value = s.paymentId; document.getElementById('ed-shop-memo').value = s.memo || ''; } } 
+            else { editingShopId = null; document.getElementById('ed-shop-name').value = ""; document.getElementById('ed-shop-memo').value = ""; if(state.shopClasses.length > 0) document.getElementById('ed-shop-class').value = state.shopClasses[0].id; if(state.categories.length > 0) document.getElementById('ed-shop-cat').value = state.categories[0].id; if(state.paymentMethods.length > 0) document.getElementById('ed-shop-pay').value = state.paymentMethods[0].id; if (fromFlow && activeClassId) document.getElementById('ed-shop-class').value = activeClassId; }
+            document.getElementById('modal-shop-editor').classList.add('active');
+        };
+
+        window.saveShopEditor = () => {
+            const name = document.getElementById('ed-shop-name').value.trim(); if (!name) return;
+            const newShop = { id: editingShopId || generateId(), name: name, classId: document.getElementById('ed-shop-class').value, categoryId: document.getElementById('ed-shop-cat').value, paymentId: document.getElementById('ed-shop-pay').value, memo: document.getElementById('ed-shop-memo').value.trim() };
+            if (editingShopId) { const idx = state.shops.findIndex(x => x.id === editingShopId); if(idx > -1) state.shops[idx] = newShop; } else { state.shops.push(newShop); } saveData(); closeModal('modal-shop-editor'); renderPanelLists(); if (isFlowFromInput) { isFlowFromInput = false; openDetailModal(newShop); }
+        };
+
+        window.openShortcutEditor = (id = null) => {
+            editingShortcutId = id; document.getElementById('title-shortcut-editor').textContent = (id && typeof id === 'string') ? 'クイック入力の編集' : '新しいクイック入力'; populateSelect('sh-class', state.shopClasses, null); populateSelect('sh-cat', state.categories, null); populateSelect('sh-pay', state.paymentMethods, null); populateShopDatalist();
+            if (id && typeof id === 'string') { const s = state.shortcuts.find(x => x.id === id); if(s) { document.getElementById('sh-name').value = s.name; document.getElementById('sh-amount').value = s.amount; document.getElementById('sh-class').value = s.classId; document.getElementById('sh-cat').value = s.categoryId; document.getElementById('sh-shop').value = s.shopName || ''; document.getElementById('sh-pay').value = s.paymentId; document.getElementById('sh-memo').value = s.memo || ''; } } 
+            else { editingShortcutId = null; document.getElementById('sh-name').value = ""; document.getElementById('sh-amount').value = ""; document.getElementById('sh-shop').value = ""; document.getElementById('sh-memo').value = ""; if(state.shopClasses.length > 0) document.getElementById('sh-class').value = state.shopClasses[0].id; if(state.categories.length > 0) document.getElementById('sh-cat').value = state.categories[0].id; if(state.paymentMethods.length > 0) document.getElementById('sh-pay').value = state.paymentMethods[0].id; }
+            document.getElementById('modal-shortcut-editor').classList.add('active');
+        };
+
+        window.saveShortcutEditor = () => {
+            const name = document.getElementById('sh-name').value.trim(); const amt = parseInt(document.getElementById('sh-amount').value); if (!name || isNaN(amt) || amt <= 0) { showAlert("登録名と正しい金額を入力してください"); return; }
+            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: document.getElementById('sh-shop').value.trim(), paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim() };
+            if (editingShortcutId) { const idx = state.shortcuts.findIndex(x => x.id === editingShortcutId); if(idx > -1) state.shortcuts[idx] = newSC; } else { state.shortcuts.push(newSC); } saveData(); closeModal('modal-shortcut-editor'); renderPanelLists(); renderShortcuts();
+        };
+
+        initData();
+        updateAmount();
+        
+        attachSwipeForView('cal-content', () => shiftDate(1), () => shiftDate(-1));
+        attachSwipeForView('stats-content', () => shiftStatsDate(1), () => shiftStatsDate(-1));
+        
+        switchView('main', 'input');
+
+    </script>
+</body>
+</html>
