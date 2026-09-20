@@ -1496,14 +1496,33 @@
         }
 
         if (firebaseAvailable) {
-            document.getElementById('btn-google-signin').addEventListener('click', () => {
-                document.getElementById('auth-gate-status').textContent = 'ログイン画面に移動しています…';
-                auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+            document.getElementById('btn-google-signin').addEventListener('click', async () => {
+                const statusEl = document.getElementById('auth-gate-status');
+                statusEl.textContent = 'ログイン中…';
+                const provider = new firebase.auth.GoogleAuthProvider();
+                try {
+                    // まずポップアップ方式(ページ遷移なし)を試す。これだとエラーが起きても
+                    // Consoleがリセットされず、問題があればそのまま画面に出せる。
+                    await auth.signInWithPopup(provider);
+                } catch (err) {
+                    console.error('ポップアップでのサインインに失敗', err);
+                    if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment' || err.code === 'auth/cancelled-popup-request')) {
+                        // ポップアップが使えない環境(ポップアップブロック等)では、
+                        // 従来通りページ遷移方式にフォールバックする
+                        statusEl.textContent = 'ログイン画面に移動しています…';
+                        auth.signInWithRedirect(provider);
+                    } else if (err && err.code !== 'auth/popup-closed-by-user') {
+                        statusEl.textContent = 'ログインに失敗しました: ' + (err.message || err.code || '不明なエラー');
+                    } else {
+                        statusEl.textContent = '';
+                    }
+                }
             });
 
+            // ポップアップが使えずリダイレクトした場合の戻り先処理
             auth.getRedirectResult().catch(err => {
                 console.error('サインインに失敗', err);
-                document.getElementById('auth-gate-status').textContent = 'ログインに失敗しました。もう一度お試しください。';
+                document.getElementById('auth-gate-status').textContent = 'ログインに失敗しました: ' + (err.message || err.code || '不明なエラー');
             });
 
             auth.onAuthStateChanged(async (user) => {
@@ -1526,7 +1545,7 @@
                             showAlert('このGoogleアカウントではこの家計簿は使えません。使いたい場合は管理者に連絡してください。');
                         } else {
                             setSyncBadge('offline');
-                            document.getElementById('lbl-sync-detail').textContent = '同期に失敗しました(通信環境をご確認ください)';
+                            document.getElementById('lbl-sync-detail').textContent = '同期に失敗しました: ' + (e && (e.code || e.message) || '不明なエラー');
                         }
                     }
                 } else {
