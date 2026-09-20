@@ -8,6 +8,10 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <!-- Firebase (クラウド同期用) -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <style>
         :root {
             --ios-bg: #F2F2F7;
@@ -177,6 +181,20 @@
         #swipe-container { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
         select.ios-input { direction: rtl; }
         select.ios-input option { direction: ltr; }
+
+        /* ==================== 同期バッジ・同期パネル ==================== */
+        .hidden-gate { display: none !important; }
+        #auth-sync-badge {
+            position: absolute; top: calc(var(--safe-top) + 10px); right: 14px; z-index: 60;
+            font-size: 11px; font-weight: 600; color: var(--ios-gray);
+            background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
+            padding: 4px 10px; border-radius: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            display: flex; align-items: center; gap: 5px; transition: opacity 0.2s;
+        }
+        #auth-sync-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #34C759; }
+        #auth-sync-badge.syncing .dot { background: #FF9500; animation: pulseDot 1s infinite; }
+        #auth-sync-badge.offline .dot { background: #C7C7CC; }
+        @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 </head>
 <body>
@@ -184,7 +202,12 @@
     <datalist id="dl-shops"></datalist>
 
     <div class="app-container">
-        
+
+        <!-- クラウド同期は既定でオフ。設定 > クラウド同期 パネルから任意で有効化する -->
+        <div id="auth-sync-badge" class="hidden-gate">
+            <span class="dot"></span><span id="auth-sync-label">同期済み</span>
+        </div>
+
         <!-- ==================== MAIN VIEW ==================== -->
         <div id="view-main" class="view-section active flex-col px-0 overflow-hidden relative">
             <div id="swipe-container" class="flex h-full w-[200%] transition-transform duration-300 ease-out" style="transform: translateX(0%);">
@@ -306,6 +329,13 @@
                 <h1 class="text-[34px] font-bold mb-4 tracking-tight">設定</h1>
             </div>
             <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
+                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-2">バックアップと同期</h2>
+                <div class="ios-list mb-2">
+                    <div class="ios-item clickable" onclick="openPanel('panel-sync')">
+                        <span class="font-medium">クラウド同期</span>
+                        <span class="text-gray-400 text-[14px] flex items-center gap-1"><span id="lbl-sync-status">未設定</span><span class="font-bold text-xl">›</span></span>
+                    </div>
+                </div>
                 <div class="ios-list mt-2">
                     <div class="ios-item clickable" onclick="openPanel('panel-payments')"><span class="font-medium">支払い方法の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-categories')"><span class="font-medium">カテゴリーの管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
@@ -329,6 +359,38 @@
         </div>
 
         <!-- === SETTINGS SUB-PANELS === -->
+        <div id="panel-sync" class="slide-panel">
+            <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-sync')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3 whitespace-nowrap">クラウド同期</h2>
+                <div class="w-1/3"></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
+
+                <div id="sync-panel-signedout">
+                    <p class="text-[13px] text-gray-500 leading-relaxed mt-5 mb-6 px-1">
+                        Googleアカウントでログインすると、iPhoneとMacの間でこの家計簿が自動的に同期されます。<br><br>
+                        ログインしなければ、これまで通りこの端末だけに保存されます（あとからいつでも有効にできます）。
+                    </p>
+                    <button id="btn-google-signin" class="w-full py-4 bg-white rounded-xl shadow-sm active:bg-gray-50 text-[16px] font-semibold text-[#1C1C1E] flex items-center justify-center gap-2 border border-[rgba(0,0,0,0.05)]">
+                        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.7 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 6 29.5 4 24 4c-7.7 0-14.3 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.3 0 10.1-2 13.7-5.4l-6.3-5.3C29.4 35.4 26.9 36 24 36c-5.4 0-9.9-3.3-11.4-7.9l-6.5 5C9.6 39.5 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.3 5.3C40.9 36 44 30.8 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+                        Googleでログイン
+                    </button>
+                    <p id="auth-gate-status" class="text-center text-[12px] text-gray-400 mt-3"></p>
+                    <p id="sync-unavailable-note" class="hidden-gate text-center text-[12px] text-[#FF3B30] mt-4 px-2">この端末ではクラウド同期の読み込みに失敗しました（通信環境をご確認ください）。ローカル保存のみで引き続き使えます。</p>
+                </div>
+
+                <div id="sync-panel-signedin" class="hidden-gate">
+                    <div class="ios-list mt-4 mb-6">
+                        <div class="ios-item"><span class="font-medium text-gray-500 text-[14px]">ログイン中</span><span class="text-gray-900 text-[14px]" id="lbl-account-email">-</span></div>
+                        <div class="ios-item"><span class="font-medium text-gray-500 text-[14px]">状態</span><span class="text-gray-900 text-[14px]" id="lbl-sync-detail">-</span></div>
+                    </div>
+                    <button class="w-full py-4 text-[#FF3B30] font-bold bg-white rounded-xl shadow-sm active:bg-red-50 text-[15px] border border-[rgba(255,59,48,0.15)]" onclick="showConfirm('ログアウトすると、この端末は自動で同期されなくなります。よろしいですか？', () => doSignOut())">ログアウトして同期を止める</button>
+                </div>
+
+            </div>
+        </div>
+
         <div id="panel-payments" class="slide-panel">
             <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
                 <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-payments')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
@@ -742,7 +804,7 @@
             } catch (e) { console.error("Load failed", e); }
             processFixedExpenses(); 
         }
-        function saveData() { localStorage.setItem('premium_tracker_v18', JSON.stringify(state)); }
+        function saveData() { localStorage.setItem('premium_tracker_v18', JSON.stringify(state)); syncToCloud(); }
 
         function processFixedExpenses() {
             if (!state.fixedExpenses || state.fixedExpenses.length === 0) {
@@ -765,11 +827,17 @@
                     let targetDay = parseInt(fe.day); if (isNaN(targetDay)) targetDay = 1;
                     if (targetDay > lastDayOfMonth) targetDay = lastDayOfMonth;
                     if (d === targetDay) {
-                        state.transactions.push({
-                            id: generateId(), amount: fe.amount, date: `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
-                            classId: fe.classId, categoryId: fe.categoryId, shopName: fe.shopName, paymentId: fe.paymentId, memo: fe.memo || '自動追加(固定費)', ts: Date.now() + Math.random()
-                        });
-                        addedCount++;
+                        // 固定費の自動追加はIDを日付から決定的に作る（同じ日の分を複数端末が別々に計算しても、
+                        // クラウド側では同じドキュメントIDに上書きされるだけになり、二重登録されない）
+                        const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                        const txnId = `fx_${fe.id}_${dateStr}`;
+                        if (!state.transactions.find(t => t.id === txnId)) {
+                            state.transactions.push({
+                                id: txnId, amount: fe.amount, date: dateStr,
+                                classId: fe.classId, categoryId: fe.categoryId, shopName: fe.shopName, paymentId: fe.paymentId, memo: fe.memo || '自動追加(固定費)', ts: Date.now()
+                            });
+                            addedCount++;
+                        }
                     }
                 });
                 currentDate.setDate(currentDate.getDate() + 1);
@@ -1226,12 +1294,265 @@
             if (editingShortcutId) { const idx = state.shortcuts.findIndex(x => x.id === editingShortcutId); if(idx > -1) state.shortcuts[idx] = newSC; } else { state.shortcuts.push(newSC); } saveData(); closeModal('modal-shortcut-editor'); renderPanelLists(); renderShortcuts();
         };
 
+        /* ============================================================
+           ここから Firebase クラウド同期
+           ============================================================ */
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD9pqm3qVbxf9gGxl9us-xq_Vuqpjx_8As",
+            authDomain: "expense-tracker-5e542.firebaseapp.com",
+            projectId: "expense-tracker-5e542",
+            storageBucket: "expense-tracker-5e542.firebasestorage.app",
+            messagingSenderId: "555839306793",
+            appId: "1:555839306793:web:fe23d6717fa5ae6ceff038"
+        };
+
+        // Firebase SDKの読み込みに失敗しても(通信環境の問題など)、家計簿アプリ本体は
+        // ローカル保存だけで問題なく動くようにする(同期機能だけが無効になる)
+        let firebaseAvailable = (typeof firebase !== 'undefined');
+        let auth = null, db = null;
+        if (firebaseAvailable) {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                try { db.enablePersistence({ synchronizeTabs: true }); } catch (e) { console.warn('Firestore persistence not available', e); }
+            } catch (e) {
+                console.error('Firebaseの初期化に失敗しました。ローカルのみで動作します。', e);
+                firebaseAvailable = false;
+            }
+        } else {
+            console.warn('Firebase SDKが読み込まれませんでした。ローカルのみで動作します。');
+        }
+
+        let txnCol = null;
+        let settingsDocRef = null;
+        let lastSyncedTxnMap = new Map(); // id -> JSON文字列（最後にクラウドへ反映した内容）
+        let syncDebounceTimer = null;
+        let cloudReady = false;
+
+        function setSyncBadge(mode) {
+            const badge = document.getElementById('auth-sync-badge');
+            const label = document.getElementById('auth-sync-label');
+            if (!badge) return;
+            badge.classList.remove('syncing', 'offline');
+            if (mode === 'syncing') { badge.classList.add('syncing'); label.textContent = '同期中…'; }
+            else if (mode === 'offline') { badge.classList.add('offline'); label.textContent = 'オフライン(保存待ち)'; }
+            else { label.textContent = '同期済み'; }
+        }
+
+        // ローカルの変更をクラウドへ反映（saveData() から呼ばれる。デバウンス付き）
+        function syncToCloud() {
+            if (!firebaseAvailable || !cloudReady) return;
+            setSyncBadge('syncing');
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = setTimeout(doSyncNow, 350);
+        }
+
+        async function doSyncNow() {
+            if (!txnCol || !settingsDocRef) return;
+            try {
+                const currentMap = new Map(state.transactions.map(t => [t.id, JSON.stringify(t)]));
+                const batch = db.batch();
+                let ops = 0;
+                currentMap.forEach((json, id) => {
+                    if (lastSyncedTxnMap.get(id) !== json) { batch.set(txnCol.doc(id), JSON.parse(json)); ops++; }
+                });
+                lastSyncedTxnMap.forEach((json, id) => {
+                    if (!currentMap.has(id)) { batch.delete(txnCol.doc(id)); ops++; }
+                });
+                if (ops > 0) await batch.commit();
+                lastSyncedTxnMap = currentMap;
+
+                await settingsDocRef.set({
+                    shopClasses: state.shopClasses, categories: state.categories, paymentMethods: state.paymentMethods,
+                    shops: state.shops, shortcuts: state.shortcuts, fixedExpenses: state.fixedExpenses,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                setSyncBadge('ok');
+            } catch (e) {
+                console.error('クラウド同期に失敗しました', e);
+                setSyncBadge('offline'); // オフライン時はFirestoreのキャッシュに書き込み待ちとして残る
+            }
+        }
+
+        // 現在の画面を再描画（他端末からの変更を受信したとき用）
+        function refreshCurrentView() {
+            [renderShortcuts, renderCalendar, renderStats, renderFixedExpenses].forEach(fn => { try { fn(); } catch (e) {} });
+        }
+
+        function attachRealtimeListeners() {
+            txnCol.onSnapshot(snap => {
+                const txns = [];
+                snap.forEach(d => txns.push(d.data()));
+                state.transactions = txns;
+                lastSyncedTxnMap = new Map(txns.map(t => [t.id, JSON.stringify(t)]));
+                localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
+                refreshCurrentView();
+            }, err => console.error('取引の同期監視でエラー', err));
+
+            settingsDocRef.onSnapshot(doc => {
+                if (!doc.exists) return;
+                const d = doc.data();
+                state.shopClasses = d.shopClasses || state.shopClasses;
+                state.categories = d.categories || state.categories;
+                state.paymentMethods = d.paymentMethods || state.paymentMethods;
+                state.shops = d.shops || state.shops;
+                state.shortcuts = d.shortcuts || state.shortcuts;
+                state.fixedExpenses = d.fixedExpenses || state.fixedExpenses;
+                localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
+                refreshCurrentView();
+            }, err => console.error('設定の同期監視でエラー', err));
+        }
+
+        // この端末にしかないローカルデータを、初回ログイン時にまるごとクラウドへアップロード
+        async function pushAllLocalDataToCloud() {
+            const chunkSize = 400;
+            for (let i = 0; i < state.transactions.length; i += chunkSize) {
+                const chunk = state.transactions.slice(i, i + chunkSize);
+                const batch = db.batch();
+                chunk.forEach(t => batch.set(txnCol.doc(t.id), t));
+                await batch.commit();
+            }
+            lastSyncedTxnMap = new Map(state.transactions.map(t => [t.id, JSON.stringify(t)]));
+            await settingsDocRef.set({
+                shopClasses: state.shopClasses, categories: state.categories, paymentMethods: state.paymentMethods,
+                shops: state.shops, shortcuts: state.shortcuts, fixedExpenses: state.fixedExpenses,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        // ログイン時に一度だけ実行: クラウドが空なら初回アップロード、既にデータがあれば
+        // ローカルにしかない取引だけを統合アップロードし、設定はクラウド側を採用する
+        async function bootstrapCloudSync(uid) {
+            txnCol = db.collection('users').doc(uid).collection('transactions');
+            settingsDocRef = db.collection('users').doc(uid).collection('meta').doc('settings');
+
+            const [txnSnap, settingsSnap] = await Promise.all([txnCol.get(), settingsDocRef.get()]);
+
+            if (txnSnap.empty && !settingsSnap.exists) {
+                // このアカウントでの完全な初回: 今のローカルデータをそのままクラウドの初期値にする
+                await pushAllLocalDataToCloud();
+            } else {
+                const remoteTxns = txnSnap.docs.map(d => d.data());
+                const remoteIds = new Set(remoteTxns.map(t => t.id));
+                const localOnly = state.transactions.filter(t => !remoteIds.has(t.id));
+
+                state.transactions = remoteTxns;
+                if (settingsSnap.exists) {
+                    const d = settingsSnap.data();
+                    state.shopClasses = d.shopClasses || state.shopClasses;
+                    state.categories = d.categories || state.categories;
+                    state.paymentMethods = d.paymentMethods || state.paymentMethods;
+                    state.shops = d.shops || state.shops;
+                    state.shortcuts = d.shortcuts || state.shortcuts;
+                    state.fixedExpenses = d.fixedExpenses || state.fixedExpenses;
+                }
+                lastSyncedTxnMap = new Map(remoteTxns.map(t => [t.id, JSON.stringify(t)]));
+
+                if (localOnly.length > 0) {
+                    const batch = db.batch();
+                    localOnly.forEach(t => { state.transactions.push(t); batch.set(txnCol.doc(t.id), t); lastSyncedTxnMap.set(t.id, JSON.stringify(t)); });
+                    await batch.commit();
+                }
+            }
+
+            localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
+            cloudReady = true;
+            attachRealtimeListeners();
+            refreshCurrentView();
+            setSyncBadge('ok');
+        }
+
+        function doSignOut() { if (firebaseAvailable && auth) auth.signOut(); }
+
+        // 「誰が使ってよいか」はこのファイルには一切書かない。Firebaseコンソールの
+        // Firestoreセキュリティルール(サーバー側、非公開)だけで判定する。許可されていない
+        // アカウントでログインすると、下のbootstrapCloudSync()内のFirestoreアクセスが
+        // "permission denied" で拒否されるので、それを検知してログアウトさせる。
+
+        function updateSyncPanelUI(state_) {
+            // state_: 'signedout' | 'signedin' | 'unavailable'
+            const signedOutBox = document.getElementById('sync-panel-signedout');
+            const signedInBox = document.getElementById('sync-panel-signedin');
+            const unavailNote = document.getElementById('sync-unavailable-note');
+            const statusLbl = document.getElementById('lbl-sync-status');
+            const btn = document.getElementById('btn-google-signin');
+            if (state_ === 'signedin') {
+                signedOutBox.classList.add('hidden-gate');
+                signedInBox.classList.remove('hidden-gate');
+                if (statusLbl) statusLbl.textContent = 'オン';
+            } else if (state_ === 'unavailable') {
+                signedOutBox.classList.remove('hidden-gate');
+                signedInBox.classList.add('hidden-gate');
+                if (unavailNote) unavailNote.classList.remove('hidden-gate');
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+                if (statusLbl) statusLbl.textContent = '利用不可';
+            } else {
+                signedOutBox.classList.remove('hidden-gate');
+                signedInBox.classList.add('hidden-gate');
+                if (statusLbl) statusLbl.textContent = 'オフ';
+            }
+        }
+
+        if (firebaseAvailable) {
+            document.getElementById('btn-google-signin').addEventListener('click', () => {
+                document.getElementById('auth-gate-status').textContent = 'ログイン画面に移動しています…';
+                auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+            });
+
+            auth.getRedirectResult().catch(err => {
+                console.error('サインインに失敗', err);
+                document.getElementById('auth-gate-status').textContent = 'ログインに失敗しました。もう一度お試しください。';
+            });
+
+            auth.onAuthStateChanged(async (user) => {
+                const badge = document.getElementById('auth-sync-badge');
+                if (user) {
+                    badge.classList.remove('hidden-gate');
+                    const emailLbl = document.getElementById('lbl-account-email');
+                    if (emailLbl) emailLbl.textContent = user.email || user.displayName || 'ログイン中';
+                    updateSyncPanelUI('signedin');
+                    document.getElementById('lbl-sync-detail').textContent = '同期中…';
+                    try {
+                        await bootstrapCloudSync(user.uid);
+                        document.getElementById('lbl-sync-detail').textContent = '正常に同期されています';
+                    } catch (e) {
+                        console.error('クラウド同期の初期化に失敗', e);
+                        if (e && e.code === 'permission-denied') {
+                            // Firestoreのセキュリティルールが、このアカウントでの読み書きを拒否した
+                            // (=許可されていないアカウント)。同期せずログアウトする。
+                            await auth.signOut();
+                            showAlert('このGoogleアカウントではこの家計簿は使えません。使いたい場合は管理者に連絡してください。');
+                        } else {
+                            setSyncBadge('offline');
+                            document.getElementById('lbl-sync-detail').textContent = '同期に失敗しました(通信環境をご確認ください)';
+                        }
+                    }
+                } else {
+                    cloudReady = false; txnCol = null; settingsDocRef = null;
+                    badge.classList.add('hidden-gate');
+                    document.getElementById('auth-gate-status').textContent = '';
+                    updateSyncPanelUI('signedout');
+                }
+            });
+        } else {
+            // Firebase SDKが読み込めない環境では、ログインを促さずローカルのみで使えるようにする
+            updateSyncPanelUI('unavailable');
+            const emailLbl = document.getElementById('lbl-account-email');
+            if (emailLbl) emailLbl.textContent = '同期オフ(オフライン)';
+        }
+
+        /* ============================================================
+           Firebase クラウド同期ここまで
+           ============================================================ */
+
         initData();
         updateAmount();
-        
+
         attachSwipeForView('cal-content', () => shiftDate(1), () => shiftDate(-1));
         attachSwipeForView('stats-content', () => shiftStatsDate(1), () => shiftStatsDate(-1));
-        
+
         switchView('main', 'input');
 
     </script>
