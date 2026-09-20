@@ -171,10 +171,10 @@
         .empty-zone { min-height: 48px; background-color: rgba(0,0,0,0.02); border: 2px dashed rgba(0,0,0,0.1); border-radius: 12px; margin: 0 16px; display: flex; align-items: center; justify-content: center; color: #8E8E93; font-size: 13px; }
 
         .shortcut-card {
-            background: var(--ios-card); border-radius: 24px; padding: 20px 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.03);
-            display: flex; flex-direction: column; justify-content: space-between;
-            aspect-ratio: 1; transition: transform 0.1s, background-color 0.1s, box-shadow 0.1s; cursor: pointer;
+            background: var(--ios-card); border-radius: 20px; padding: 18px 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02);
+            display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+            transition: transform 0.1s, background-color 0.1s, box-shadow 0.1s; cursor: pointer;
         }
         .shortcut-card:active { transform: scale(0.92); background-color: #F8F8F9; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
 
@@ -329,12 +329,12 @@
                 <div class="ios-list mt-2">
                     <div class="ios-item clickable" onclick="openPanel('panel-payments')"><span class="font-medium">支払い方法の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-categories')"><span class="font-medium">カテゴリーの管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                    <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                 </div>
                 
                 <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">入力・お店</h2>
                 <div class="ios-list">
                     <div class="ios-item clickable" onclick="openPanel('panel-shortcuts')"><span class="font-medium">クイック入力 (スワイプ画面)</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-shops')"><span class="font-medium">お店リストと詳細設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                 </div>
 
@@ -747,9 +747,7 @@
             { "id": "wx1zxga0y", "name": "ニトリ", "classId": "tepva9u9i", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" },
             { "id": "7f4wwdz3x", "name": "BookOff", "classId": "c473fmfzt", "categoryId": "c2", "paymentId": "uj853b324", "memo": "" }
           ],
-          "shortcuts": [
-            { "id": "q1", "name": "バス通勤", "amount": 210, "classId": "sc6", "categoryId": "c3", "shopName": "京都市バス", "paymentId": "grn0xefc2", "memo": "" }
-          ],
+          "shortcuts": [],
           "fixedExpenses": [],
           "lastRunDate": ""
         };
@@ -1057,9 +1055,11 @@
             const list = document.getElementById('grid-shortcuts'); list.innerHTML = '';
             if (state.shortcuts.length === 0) { list.innerHTML = `<div class="col-span-2 text-center text-gray-400 text-[14px] py-10 mt-10">設定からクイック入力を<br>追加してください</div>`; return; }
             state.shortcuts.forEach(sc => {
-                const cls = state.shopClasses.find(c => c.id === sc.classId) || { icon: '📦' }; const btn = document.createElement('div'); btn.className = "shortcut-card"; btn.onclick = () => useShortcut(sc);
-                const displayAmt = sc.amount ? `¥${sc.amount.toLocaleString()}` : `<span class="text-[14px] text-gray-400 font-medium">金額未指定</span>`;
-                btn.innerHTML = `<div class="flex items-center justify-between w-full"><span class="text-[32px] leading-none">${cls.icon}</span></div><div class="flex flex-col items-start w-full mt-4"><span class="text-gray-900 font-bold truncate w-full text-[15px] tracking-tight text-left mb-1">${sc.name}</span><span class="text-[#007AFF] font-extrabold text-[22px] tracking-tight flex items-center h-[26px]">${displayAmt}</span></div>`; list.appendChild(btn);
+                const btn = document.createElement('div'); btn.className = "shortcut-card"; btn.onclick = () => useShortcut(sc);
+                const displayAmt = sc.amount ? `¥${sc.amount.toLocaleString()}` : `<span class="text-[13px] text-gray-400 font-medium">金額未指定</span>`;
+                const shopLabel = sc.shopName || 'お店未指定';
+                btn.innerHTML = `<span class="text-gray-900 font-bold truncate w-full text-[16px] tracking-tight text-left">${sc.name}</span><span class="text-gray-400 text-[11px] font-medium truncate w-full mb-2">${shopLabel}</span><span class="text-[#007AFF] font-extrabold text-[22px] tracking-tight flex items-center leading-none">${displayAmt}</span>`; 
+                list.appendChild(btn);
             });
         }
         function useShortcut(sc) { 
