@@ -1325,9 +1325,14 @@
             console.warn('Firebase SDKが読み込まれませんでした。ローカルのみで動作します。');
         }
 
-        let txnCol = null;
-        let settingsDocRef = null;
-        let lastSyncedTxnMap = new Map(); // id -> JSON文字列（最後にクラウドへ反映した内容）
+        // 同期する7つの項目。それぞれ「1件ずつ別ドキュメント」としてクラウドに保存する。
+        // (以前は取引だけ個別保存・お店やカテゴリーなどはひとつの塊で保存していたため、
+        //  両端末で同時に追加すると片方が消えることがあった。全部この方式に統一する)
+        const SYNCED_COLLECTIONS = ['transactions', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
+
+        let collRefs = {};           // name -> Firestoreのコレクション参照
+        let lastSyncedMaps = {};     // name -> Map(id -> 最後にクラウドへ反映したJSON文字列)
+        SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = new Map(); });
         let syncDebounceTimer = null;
         let cloudReady = false;
 
@@ -1349,26 +1354,35 @@
             syncDebounceTimer = setTimeout(doSyncNow, 350);
         }
 
-        async function doSyncNow() {
-            if (!txnCol || !settingsDocRef) return;
-            try {
-                const currentMap = new Map(state.transactions.map(t => [t.id, JSON.stringify(t)]));
-                const batch = db.batch();
-                let ops = 0;
-                currentMap.forEach((json, id) => {
-                    if (lastSyncedTxnMap.get(id) !== json) { batch.set(txnCol.doc(id), JSON.parse(json)); ops++; }
-                });
-                lastSyncedTxnMap.forEach((json, id) => {
-                    if (!currentMap.has(id)) { batch.delete(txnCol.doc(id)); ops++; }
-                });
-                if (ops > 0) await batch.commit();
-                lastSyncedTxnMap = currentMap;
+        // 1つの項目(例: shops)について、ローカルの配列とクラウドの最新反映状況を比べて、
+        // 追加・変更・削除された分だけをFirestoreのバッチ書き込みに積む
+        function diffCollectionIntoBatch(batch, name) {
+            const localArr = state[name] || [];
+            const currentMap = new Map(localArr.map(item => [item.id, JSON.stringify(item)]));
+            const lastMap = lastSyncedMaps[name];
+            let ops = 0;
+            currentMap.forEach((json, id) => {
+                if (lastMap.get(id) !== json) { batch.set(collRefs[name].doc(id), JSON.parse(json)); ops++; }
+            });
+            lastMap.forEach((json, id) => {
+                if (!currentMap.has(id)) { batch.delete(collRefs[name].doc(id)); ops++; }
+            });
+            return { currentMap, ops };
+        }
 
-                await settingsDocRef.set({
-                    shopClasses: state.shopClasses, categories: state.categories, paymentMethods: state.paymentMethods,
-                    shops: state.shops, shortcuts: state.shortcuts, fixedExpenses: state.fixedExpenses,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
+        async function doSyncNow() {
+            if (!collRefs.transactions) return;
+            try {
+                const batch = db.batch();
+                let totalOps = 0;
+                const newMaps = {};
+                SYNCED_COLLECTIONS.forEach(name => {
+                    const { currentMap, ops } = diffCollectionIntoBatch(batch, name);
+                    newMaps[name] = currentMap;
+                    totalOps += ops;
+                });
+                if (totalOps > 0) await batch.commit();
+                SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = newMaps[name]; });
                 setSyncBadge('ok');
             } catch (e) {
                 console.error('クラウド同期に失敗しました', e);
@@ -1382,119 +1396,44 @@
         }
 
         function attachRealtimeListeners() {
-            txnCol.onSnapshot(snap => {
-                const txns = [];
-                snap.forEach(d => txns.push(d.data()));
-                state.transactions = txns;
-                lastSyncedTxnMap = new Map(txns.map(t => [t.id, JSON.stringify(t)]));
-                localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
-                refreshCurrentView();
-            }, err => console.error('取引の同期監視でエラー', err));
-
-            settingsDocRef.onSnapshot(doc => {
-                if (!doc.exists) return;
-                const d = doc.data();
-                state.shopClasses = d.shopClasses || state.shopClasses;
-                state.categories = d.categories || state.categories;
-                state.paymentMethods = d.paymentMethods || state.paymentMethods;
-                state.shops = d.shops || state.shops;
-                state.shortcuts = d.shortcuts || state.shortcuts;
-                state.fixedExpenses = d.fixedExpenses || state.fixedExpenses;
-                localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
-                refreshCurrentView();
-            }, err => console.error('設定の同期監視でエラー', err));
-        }
-
-        // この端末にしかないローカルデータを、初回ログイン時にまるごとクラウドへアップロード
-        async function pushAllLocalDataToCloud() {
-            const chunkSize = 400;
-            for (let i = 0; i < state.transactions.length; i += chunkSize) {
-                const chunk = state.transactions.slice(i, i + chunkSize);
-                const batch = db.batch();
-                chunk.forEach(t => batch.set(txnCol.doc(t.id), t));
-                await batch.commit();
-            }
-            lastSyncedTxnMap = new Map(state.transactions.map(t => [t.id, JSON.stringify(t)]));
-            await settingsDocRef.set({
-                shopClasses: state.shopClasses, categories: state.categories, paymentMethods: state.paymentMethods,
-                shops: state.shops, shortcuts: state.shortcuts, fixedExpenses: state.fixedExpenses,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            SYNCED_COLLECTIONS.forEach(name => {
+                collRefs[name].onSnapshot(snap => {
+                    const arr = [];
+                    snap.forEach(d => arr.push(d.data()));
+                    state[name] = arr;
+                    lastSyncedMaps[name] = new Map(arr.map(item => [item.id, JSON.stringify(item)]));
+                    localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
+                    refreshCurrentView();
+                }, err => console.error(name + ' の同期監視でエラー', err));
             });
         }
 
-        // idをキーに、クラウド側とローカル側の配列を統合する(クラウドにしかない項目・ローカルにしか
-        // ない項目は両方残す。同じidが両方にある場合はクラウド側を優先)。設定(お店・カテゴリー・
-        // 固定費など)は、この端末が初めてログインする瞬間に「ローカルにしかないもの」が
-        // クラウド側の内容で丸ごと上書きされて消えないようにするために使う。
-        function mergeArraysById(remoteArr, localArr) {
-            remoteArr = remoteArr || [];
-            localArr = localArr || [];
-            const remoteIds = new Set(remoteArr.map(x => x.id));
-            const merged = remoteArr.slice();
-            localArr.forEach(item => { if (item && !remoteIds.has(item.id)) merged.push(item); });
-            return merged;
-        }
-
-        // ログイン時に一度だけ実行: クラウドが空なら初回アップロード、既にデータがあれば
-        // 取引・設定(お店/カテゴリー/固定費など)のどちらも、クラウド側とこの端末のローカル側を
-        // idで突き合わせて統合する(どちらか片方にしかない項目も消さずに残す)
+        // ログイン時に一度だけ実行: 7つの項目それぞれについて、クラウド側の内容を取り込みつつ、
+        // この端末にしかないローカルの項目(id基準)はクラウドへアップロードして残す。
+        // 以後はattachRealtimeListeners()のリアルタイム監視と、保存のたびのdoSyncNow()の
+        // 1件ずつの差分同期によって、両端末で同時に追加しても互いに消し合わない。
         async function bootstrapCloudSync(uid) {
-            txnCol = db.collection('users').doc(uid).collection('transactions');
-            settingsDocRef = db.collection('users').doc(uid).collection('meta').doc('settings');
+            SYNCED_COLLECTIONS.forEach(name => { collRefs[name] = db.collection('users').doc(uid).collection(name); });
 
-            const [txnSnap, settingsSnap] = await Promise.all([txnCol.get(), settingsDocRef.get()]);
+            const snaps = {};
+            await Promise.all(SYNCED_COLLECTIONS.map(async name => { snaps[name] = await collRefs[name].get(); }));
 
-            if (txnSnap.empty && !settingsSnap.exists) {
-                // このアカウントでの完全な初回: 今のローカルデータをそのままクラウドの初期値にする
-                await pushAllLocalDataToCloud();
-            } else {
-                const remoteTxns = txnSnap.docs.map(d => d.data());
-                const remoteIds = new Set(remoteTxns.map(t => t.id));
-                const localOnlyTxns = state.transactions.filter(t => !remoteIds.has(t.id));
+            const batch = db.batch();
+            let hasBatchOps = false;
 
-                // 設定類は、クラウド側とこの端末のローカル側をidで統合する(丸ごと上書きしない)
-                const localShopClasses = state.shopClasses, localCategories = state.categories,
-                      localPaymentMethods = state.paymentMethods, localShops = state.shops,
-                      localShortcuts = state.shortcuts, localFixedExpenses = state.fixedExpenses;
-                let settingsChanged = false;
-                if (settingsSnap.exists) {
-                    const d = settingsSnap.data();
-                    state.shopClasses = mergeArraysById(d.shopClasses, localShopClasses);
-                    state.categories = mergeArraysById(d.categories, localCategories);
-                    state.paymentMethods = mergeArraysById(d.paymentMethods, localPaymentMethods);
-                    state.shops = mergeArraysById(d.shops, localShops);
-                    state.shortcuts = mergeArraysById(d.shortcuts, localShortcuts);
-                    state.fixedExpenses = mergeArraysById(d.fixedExpenses, localFixedExpenses);
-                    // 統合の結果、ローカルにしかなかった項目が1つでも追加されていたら、
-                    // クラウド側にも書き戻して消えたままにならないようにする
-                    settingsChanged = [
-                        ['shopClasses', d.shopClasses], ['categories', d.categories], ['paymentMethods', d.paymentMethods],
-                        ['shops', d.shops], ['shortcuts', d.shortcuts], ['fixedExpenses', d.fixedExpenses]
-                    ].some(([key, remoteVal]) => (remoteVal || []).length !== state[key].length);
-                } else {
-                    // 設定ドキュメントがまだ存在しない(取引だけ先にあった等)ので、ローカルの内容で作る
-                    settingsChanged = true;
-                }
+            SYNCED_COLLECTIONS.forEach(name => {
+                const remoteItems = snaps[name].docs.map(d => d.data());
+                const remoteIds = new Set(remoteItems.map(x => x.id));
+                const localOnly = (state[name] || []).filter(x => x && !remoteIds.has(x.id));
 
-                state.transactions = remoteTxns;
-                lastSyncedTxnMap = new Map(remoteTxns.map(t => [t.id, JSON.stringify(t)]));
+                // クラウド側 + この端末にしかなかった項目、両方を残す
+                state[name] = remoteItems.concat(localOnly);
+                lastSyncedMaps[name] = new Map(state[name].map(item => [item.id, JSON.stringify(item)]));
 
-                const batch = db.batch();
-                let hasBatchOps = false;
-                if (localOnlyTxns.length > 0) {
-                    localOnlyTxns.forEach(t => { state.transactions.push(t); batch.set(txnCol.doc(t.id), t); lastSyncedTxnMap.set(t.id, JSON.stringify(t)); });
-                    hasBatchOps = true;
-                }
-                if (hasBatchOps) await batch.commit();
+                localOnly.forEach(item => { batch.set(collRefs[name].doc(item.id), item); hasBatchOps = true; });
+            });
 
-                if (settingsChanged) {
-                    await settingsDocRef.set({
-                        shopClasses: state.shopClasses, categories: state.categories, paymentMethods: state.paymentMethods,
-                        shops: state.shops, shortcuts: state.shortcuts, fixedExpenses: state.fixedExpenses,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true });
-                }
-            }
+            if (hasBatchOps) await batch.commit();
 
             localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
             cloudReady = true;
@@ -1588,7 +1527,7 @@
                         }
                     }
                 } else {
-                    cloudReady = false; txnCol = null; settingsDocRef = null;
+                    cloudReady = false; collRefs = {};
                     badge.classList.add('hidden-gate');
                     document.getElementById('auth-gate-status').textContent = '';
                     updateSyncPanelUI('signedout');
