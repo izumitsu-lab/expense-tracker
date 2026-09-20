@@ -432,7 +432,8 @@
                 <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 20V10M12 20V4M6 20v-6"></path></svg>
                 <span class="text-[10px] font-semibold text-gray-400 transition-colors">分析</span>
             </div>
-            <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="calendar">
+            <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link relative" data-target="calendar">
+                <div id="nav-badge-calendar" class="absolute top-0.5 right-[15%] bg-[#FF3B30] text-white text-[9px] font-bold h-[15px] min-w-[15px] px-1 rounded-full flex items-center justify-center border border-[#F2F2F7] shadow-sm hidden z-10 pointer-events-none"></div>
                 <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 <span class="text-[10px] font-semibold text-gray-400 transition-colors">履歴</span>
             </div>
@@ -773,6 +774,18 @@
         let shopSortables = [];
         let isFlowFromInput = false;
 
+        function updateUnsetBadge() {
+            const unsetCount = state.transactions.filter(t => !t.classId && !t.categoryId).length;
+            const badge = document.getElementById('nav-badge-calendar');
+            if (!badge) return;
+            if (unsetCount > 0) {
+                badge.textContent = unsetCount > 99 ? '99+' : unsetCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
         function initData() {
             try {
                 let stored = localStorage.getItem('premium_tracker_v18');
@@ -793,8 +806,13 @@
                 }
             } catch (e) { console.error("Load failed", e); }
             processFixedExpenses(); 
+            updateUnsetBadge();
         }
-        function saveData() { localStorage.setItem('premium_tracker_v18', JSON.stringify(state)); syncToCloud(); }
+        function saveData() { 
+            localStorage.setItem('premium_tracker_v18', JSON.stringify(state)); 
+            syncToCloud(); 
+            updateUnsetBadge();
+        }
 
         function processFixedExpenses() {
             if (!state.fixedExpenses || state.fixedExpenses.length === 0) {
@@ -1022,6 +1040,17 @@
             });
         };
 
+        window.handleShopSelectChange = (shopSelectId, classSelectId, catSelectId, paySelectId) => {
+            const shopName = document.getElementById(shopSelectId).value;
+            if (!shopName) return;
+            const classId = document.getElementById(classSelectId).value;
+            const shop = state.shops.find(s => s.name === shopName && s.classId === classId);
+            if (shop) {
+                if (shop.categoryId) document.getElementById(catSelectId).value = shop.categoryId;
+                if (shop.paymentId) document.getElementById(paySelectId).value = shop.paymentId;
+            }
+        };
+
         function populateSelect(selectId, items, selectedId) { const sel = document.getElementById(selectId); sel.innerHTML = ''; items.forEach(i => { const opt = document.createElement('option'); opt.value = i.id; opt.textContent = i.name; if (i.id === selectedId) opt.selected = true; sel.appendChild(opt); }); }
 
         function renderShortcuts() {
@@ -1112,9 +1141,13 @@
             if (filtered.length === 0) list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium">データがありません</div>`;
             else {
                 filtered.forEach(t => {
-                    total += t.amount; const dt = new Date(t.date); const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'}; const displayTitle = t.shopName || catObj.name;
+                    total += t.amount; const dt = new Date(t.date); const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'};
+                    const isUnset = !t.classId && !t.categoryId;
+                    const displayTitle = isUnset ? '未設定' : (t.shopName || catObj.name);
+                    const titleClass = isUnset ? 'text-[#FF3B30]' : 'text-gray-900';
+                    const subText = isUnset ? '<span class="bg-[#FF3B30] text-white text-[9px] px-1 py-[2px] rounded-[4px] font-bold mr-1 leading-none inline-flex items-center">要編集</span>' : `${catObj.name} ${t.memo ? '・'+t.memo : ''}`;
                     const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openDetailModal(null, t);
-                    div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-10 shrink-0"><span class="text-[10px] text-gray-400 font-bold uppercase">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span><span class="text-sm font-bold text-gray-700">${dt.getDate()}</span></div><div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full"><span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${displayTitle}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate">${catObj.name} ${t.memo ? '・'+t.memo : ''}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span><span class="text-[10px] text-[#007AFF] mt-0.5">${payObj.name}</span></div>`;
+                    div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-10 shrink-0"><span class="text-[10px] text-gray-400 font-bold uppercase">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span><span class="text-sm font-bold text-gray-700">${dt.getDate()}</span></div><div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full"><span class="font-bold ${titleClass} truncate tracking-tight text-[16px]">${displayTitle}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate flex items-center">${subText}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span><span class="text-[10px] text-[#007AFF] mt-0.5">${payObj.name}</span></div>`;
                     list.appendChild(div);
                 });
             }
@@ -1426,6 +1459,7 @@
 
         // 現在の画面を再描画（他端末からの変更を受信したとき用）
         function refreshCurrentView() {
+            updateUnsetBadge();
             [renderShortcuts, renderCalendar, renderStats, renderFixedExpenses].forEach(fn => { try { fn(); } catch (e) {} });
         }
 
