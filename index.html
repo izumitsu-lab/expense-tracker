@@ -182,22 +182,8 @@
         select.ios-input { direction: rtl; }
         select.ios-input option { direction: ltr; }
 
-        /* ==================== 同期バッジ・同期パネル ==================== */
+        /* ==================== 同期パネル ==================== */
         .hidden-gate { display: none !important; }
-        #auth-sync-badge {
-            /* 右上は各設定パネルの「追加」「完了」「保存」ボタンの定位置なので、そこを避けて左上に置く。
-               pointer-eventsも切って、万一何かと重なっても下のボタンのタップを奪わないようにする */
-            position: absolute; top: calc(var(--safe-top) + 10px); left: 14px; z-index: 15;
-            font-size: 11px; font-weight: 600; color: var(--ios-gray);
-            background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
-            padding: 4px 10px; border-radius: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-            display: flex; align-items: center; gap: 5px; transition: opacity 0.2s;
-            pointer-events: none;
-        }
-        #auth-sync-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #34C759; }
-        #auth-sync-badge.syncing .dot { background: #FF9500; animation: pulseDot 1s infinite; }
-        #auth-sync-badge.offline .dot { background: #C7C7CC; }
-        @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 </head>
 <body>
@@ -207,9 +193,6 @@
     <div class="app-container">
 
         <!-- クラウド同期は既定でオフ。設定 > クラウド同期 パネルから任意で有効化する -->
-        <div id="auth-sync-badge" class="hidden-gate">
-            <span class="dot"></span><span id="auth-sync-label">同期済み</span>
-        </div>
 
         <!-- ==================== MAIN VIEW ==================== -->
         <div id="view-main" class="view-section active flex-col px-0 overflow-hidden relative">
@@ -1339,14 +1322,14 @@
         let syncDebounceTimer = null;
         let cloudReady = false;
 
+        // 同期状態は、画面に浮かせたバッジではなく「設定 > クラウド同期」パネルの中の
+        // 表示だけで伝える(そちらを開いていないときは特に何も表示しない)
         function setSyncBadge(mode) {
-            const badge = document.getElementById('auth-sync-badge');
-            const label = document.getElementById('auth-sync-label');
-            if (!badge) return;
-            badge.classList.remove('syncing', 'offline');
-            if (mode === 'syncing') { badge.classList.add('syncing'); label.textContent = '同期中…'; }
-            else if (mode === 'offline') { badge.classList.add('offline'); label.textContent = 'オフライン(保存待ち)'; }
-            else { label.textContent = '同期済み'; }
+            const detail = document.getElementById('lbl-sync-detail');
+            if (!detail) return;
+            if (mode === 'syncing') detail.textContent = '同期中…';
+            else if (mode === 'offline') detail.textContent = 'オフライン(保存待ち。通信が戻ると自動で反映されます)';
+            else detail.textContent = '正常に同期されています';
         }
 
         // ローカルの変更をクラウドへ反映（saveData() から呼ばれる。デバウンス付き）
@@ -1507,9 +1490,7 @@
             });
 
             auth.onAuthStateChanged(async (user) => {
-                const badge = document.getElementById('auth-sync-badge');
                 if (user) {
-                    badge.classList.remove('hidden-gate');
                     const emailLbl = document.getElementById('lbl-account-email');
                     if (emailLbl) emailLbl.textContent = user.email || user.displayName || 'ログイン中';
                     updateSyncPanelUI('signedin');
@@ -1531,7 +1512,6 @@
                     }
                 } else {
                     cloudReady = false; collRefs = {};
-                    badge.classList.add('hidden-gate');
                     document.getElementById('auth-gate-status').textContent = '';
                     updateSyncPanelUI('signedout');
                 }
