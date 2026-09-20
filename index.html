@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Expense Tracker</title>
-    
     <link rel="icon" type="image/png" href="favicon-32.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
@@ -133,16 +131,23 @@
         .numpad-btn.transparent { background: transparent; box-shadow: none; font-size: 24px; }
         .numpad-btn:active { background-color: #E5E5EA; transform: scale(0.92); }
 
+        /* ★ クラスボタンの改行対策・デザイン調整 */
         .class-btn {
             background: var(--ios-card); border-radius: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.04);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 8px; cursor: pointer; transition: transform 0.1s, background-color 0.1s;
-            padding: 16px 4px; aspect-ratio: 1;
+            gap: 6px; cursor: pointer; transition: transform 0.1s, background-color 0.1s;
+            padding: 12px 2px; aspect-ratio: 1;
         }
         .class-btn:active { background-color: #F8F8F9; transform: scale(0.95); }
-        .class-btn-icon { font-size: 32px; }
-        .class-btn-text { font-size: 13px; font-weight: 600; color: #1C1C1E; letter-spacing: -0.02em; }
+        .class-btn-icon { font-size: 28px; }
+        .class-btn-text { 
+            font-size: 11.5px; 
+            font-weight: 600; 
+            color: #1C1C1E; 
+            letter-spacing: -0.04em; 
+            white-space: nowrap; 
+        }
 
         .ios-list { background: var(--ios-card); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
         .ios-item {
@@ -153,7 +158,7 @@
         .ios-item.clickable:active { background-color: #E5E5EA; }
         .ios-item:last-child { border-bottom: none; }
         
-        .ios-input { text-align: right; color: var(--ios-gray); background: transparent; outline: none; flex-grow: 1; margin-left: 16px; font-size: 17px; width: 100%; }
+        .ios-input { text-align: right; color: var(--ios-gray); background: transparent; outline: none; font-size: 17px; width: 100%; }
         
         .drag-handle { cursor: grab; color: #C7C7CC; padding: 0 10px; font-size: 22px; display: flex; align-items: center; justify-content: center; height: 100%; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -179,10 +184,10 @@
         #swipe-container { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
         
         select.ios-input {
-            direction: rtl; /* 矢印を右に */
+            direction: rtl;
         }
         select.ios-input option {
-            direction: ltr; /* 中身の文字は左から右 */
+            direction: ltr;
         }
     </style>
 </head>
@@ -379,7 +384,7 @@
             <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-12 mt-4"><div class="ios-list" id="list-set-shortcuts"></div></div>
         </div>
 
-        <!-- ==================== BOTTOM NAVIGATION ==================== -->
+        <!-- ==================== BOTTOM NAVIGATION (5等分で固定) ==================== -->
         <div class="glass-nav">
             <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="stats">
                 <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 20V10M12 20V4M6 20v-6"></path></svg>
@@ -411,7 +416,8 @@
                 <h2 class="font-bold text-[17px]">お店の分類</h2>
                 <div class="w-[80px]"></div>
             </div>
-            <div class="px-5 py-4 flex-1 overflow-y-auto no-scrollbar pb-24"><div id="grid-classes" class="grid grid-cols-4 gap-4 w-full"></div></div>
+            <!-- ★ 分類ボタンのリスト (gapを詰めて改行防止) -->
+            <div class="px-4 py-4 flex-1 overflow-y-auto no-scrollbar pb-24"><div id="grid-classes" class="grid grid-cols-4 gap-2 w-full"></div></div>
         </div>
 
         <div id="modal-shops" class="modal-sheet z-[60]">
@@ -445,7 +451,18 @@
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">日付</span><input type="date" id="inp-date" class="ios-input font-medium"></div>
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">分類</span><select id="inp-class" class="ios-input appearance-none bg-transparent" onchange="updateShopSelect('inp-class','inp-shop')" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">カテゴリー</span><select id="inp-cat" class="ios-input appearance-none bg-transparent" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">お店</span><select id="inp-shop" class="ios-input appearance-none bg-transparent" onchange="handleShopSelectChange('inp-shop','inp-class','inp-cat','inp-payment')" dir="rtl"></select></div>
+                    
+                    <!-- ★ お店選択と追加ボタンのハイブリッド -->
+                    <div class="ios-item pr-4">
+                        <span class="w-16 text-gray-900 font-medium shrink-0">お店</span>
+                        <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
+                            <select id="inp-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" dir="rtl"></select>
+                            <button onclick="promptAddNewShop('inp-class','inp-shop','inp-cat','inp-payment')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">支払い</span><select id="inp-payment" class="ios-input appearance-none text-[#007AFF] font-medium bg-transparent" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">メモ</span><input type="text" id="inp-memo" class="ios-input font-medium" placeholder="追加情報..."></div>
                 </div>
@@ -490,7 +507,17 @@
                 <div class="ios-list shadow-sm">
                     <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="sh-class" class="ios-input bg-transparent" onchange="updateShopSelect('sh-class','sh-shop')" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="sh-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">お店</span><select id="sh-shop" class="ios-input bg-transparent" onchange="handleShopSelectChange('sh-shop','sh-class','sh-cat','sh-pay')" dir="rtl"></select></div>
+                    
+                    <div class="ios-item pr-4">
+                        <span class="w-16 text-gray-900 shrink-0">お店</span>
+                        <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
+                            <select id="sh-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" dir="rtl"></select>
+                            <button onclick="promptAddNewShop('sh-class','sh-shop','sh-cat','sh-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="sh-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="sh-memo" class="ios-input text-left ml-0" placeholder=""></div>
                 </div>
@@ -519,7 +546,17 @@
                 <div class="ios-list shadow-sm">
                     <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="fx-class" class="ios-input bg-transparent" onchange="updateShopSelect('fx-class','fx-shop')" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="fx-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">お店</span><select id="fx-shop" class="ios-input bg-transparent" onchange="handleShopSelectChange('fx-shop','fx-class','fx-cat','fx-pay')" dir="rtl"></select></div>
+                    
+                    <div class="ios-item pr-4">
+                        <span class="w-16 text-gray-900 shrink-0">お店</span>
+                        <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
+                            <select id="fx-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" dir="rtl"></select>
+                            <button onclick="promptAddNewShop('fx-class','fx-shop','fx-cat','fx-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="fx-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="fx-memo" class="ios-input text-left ml-0" placeholder=""></div>
                 </div>
@@ -541,7 +578,6 @@
             </div>
         </div>
 
-        <!-- 新設：日付選択プロンプト -->
         <div id="custom-date-prompt" class="overlay z-[200]">
             <div class="dialog-box p-5 pb-0">
                 <h3 class="font-semibold text-[17px] mb-2 text-black">履歴に追加する日付</h3>
@@ -700,7 +736,10 @@
 
         function initData() {
             try {
-                const stored = localStorage.getItem('premium_tracker_v15');
+                // v16に変更しつつ、既存のデータがあれば引き継ぐ
+                let stored = localStorage.getItem('premium_tracker_v16');
+                if (!stored) stored = localStorage.getItem('premium_tracker_v15');
+                
                 if (stored) {
                     const parsed = JSON.parse(stored);
                     state.transactions = parsed.transactions || [];
@@ -715,9 +754,8 @@
             } catch (e) { console.error("Load failed", e); }
             processFixedExpenses(); 
         }
-        function saveData() { localStorage.setItem('premium_tracker_v15', JSON.stringify(state)); }
+        function saveData() { localStorage.setItem('premium_tracker_v16', JSON.stringify(state)); }
 
-        // --- 自動固定費の処理 ---
         function processFixedExpenses() {
             if (!state.fixedExpenses || state.fixedExpenses.length === 0) {
                 const d = new Date(); state.lastRunDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; saveData(); return;
@@ -851,22 +889,35 @@
             el.addEventListener('touchend', e => { const diffX = e.changedTouches[0].clientX - sX; const diffY = e.changedTouches[0].clientY - sY; if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) { if (diffX > 0) onRight(); else onLeft(); } }, {passive: true});
         }
 
-        // --- ★ CSV/JSON Export with iOS Safari Web Share API ---
+        // --- ★ CSV/JSON Export (iOS Safari 対応版) ---
         async function shareFile(content, filename, mimeType) {
             const blob = new Blob([content], { type: mimeType });
             const file = new File([blob], filename, { type: mimeType });
+            
+            // Web Share API が使用可能なら、iOS標準の共有メニューを開く
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
                     await navigator.share({ files: [file] });
                     return;
-                } catch (err) { console.log(err); }
+                } catch (err) {
+                    console.log("Share API cancelled or failed:", err);
+                }
             }
-            const url = URL.createObjectURL(blob); const dl = document.createElement('a'); dl.href = url; dl.download = filename;
-            document.body.appendChild(dl); dl.click(); document.body.removeChild(dl); URL.revokeObjectURL(url);
+            
+            // 非対応ブラウザ（Mac/PCなど）は通常のダウンロード
+            const url = URL.createObjectURL(blob);
+            const dl = document.createElement('a'); 
+            dl.href = url; 
+            dl.download = filename;
+            document.body.appendChild(dl); 
+            dl.click(); 
+            document.body.removeChild(dl); 
+            URL.revokeObjectURL(url);
         }
 
         window.exportCSV = async () => {
-            let csvContent = "\uFEFF"; csvContent += "日付,分類,カテゴリー,お店,支払い方法,金額,メモ\n";
+            let csvContent = "\uFEFF"; // BOMを追加してExcelでの文字化けを防止
+            csvContent += "日付,分類,カテゴリー,お店,支払い方法,金額,メモ\n";
             const sortedTxns = [...state.transactions].sort((a, b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts);
             sortedTxns.forEach(t => {
                 const cls = state.shopClasses.find(c => c.id === t.classId) || {name: ''}; const cat = state.categories.find(c => c.id === t.categoryId) || {name: ''}; const pay = state.paymentMethods.find(p => p.id === t.paymentId) || {name: ''};
@@ -887,7 +938,7 @@
         function handleNumInput(val) { if (val === 'C') currentAmount = "0"; else if (val === 'BACK') { currentAmount = currentAmount.slice(0, -1); if (currentAmount === "") currentAmount = "0"; } else { if (currentAmount === "0") currentAmount = val; else if (currentAmount.length < 8) currentAmount += val; } updateAmount(); }
         document.querySelectorAll('.numpad-btn').forEach(btn => { btn.addEventListener('click', (e) => { if(preventClick) return; handleNumInput(e.currentTarget.getAttribute('data-val')); if (navigator.vibrate) navigator.vibrate(5); }); });
 
-        // --- ★ Shop Select / Datalist Logic ---
+        // --- ★ お店の選択肢を分類と連動 + 手動追加機能 ---
         window.updateShopSelect = (classSelectId, shopSelectId, selectedShopName = null) => {
             const classId = document.getElementById(classSelectId).value;
             const shopSel = document.getElementById(shopSelectId);
@@ -898,11 +949,10 @@
             const relevantShops = state.shops.filter(s => s.classId === classId);
             relevantShops.forEach(s => { const opt = document.createElement('option'); opt.value = s.name; opt.textContent = s.name; shopSel.appendChild(opt); });
 
-            const optAdd = document.createElement('option'); optAdd.value = 'ADD_NEW'; optAdd.textContent = '＋ 新しいお店を追加'; optAdd.className = 'text-[#007AFF] font-bold'; shopSel.appendChild(optAdd);
-
+            // 履歴に手動で残された未知の店名を保持するため
             if (selectedShopName) {
                 if (!relevantShops.find(s => s.name === selectedShopName)) {
-                    const opt = document.createElement('option'); opt.value = selectedShopName; opt.textContent = selectedShopName; shopSel.insertBefore(opt, shopSel.lastChild);
+                    const opt = document.createElement('option'); opt.value = selectedShopName; opt.textContent = selectedShopName; shopSel.appendChild(opt);
                 }
                 shopSel.value = selectedShopName;
             } else {
@@ -910,19 +960,21 @@
             }
         };
 
-        window.handleShopSelectChange = (shopSelectId, classSelectId, catSelectId, paySelectId) => {
-            const sel = document.getElementById(shopSelectId);
-            if (sel.value === 'ADD_NEW') {
-                showPrompt('新しいお店の名前', '', (val) => {
-                    if(val) {
-                        const classId = document.getElementById(classSelectId).value;
-                        const catId = document.getElementById(catSelectId).value;
-                        const payId = document.getElementById(paySelectId).value;
+        window.promptAddNewShop = (classSelectId, shopSelectId, catSelectId, paySelectId) => {
+            showPrompt('新しいお店の名前', '', (val) => {
+                if(val) {
+                    const classId = document.getElementById(classSelectId).value;
+                    const catId = document.getElementById(catSelectId).value;
+                    const payId = document.getElementById(paySelectId).value;
+                    
+                    // 重複チェック
+                    if (!state.shops.find(s => s.name === val && s.classId === classId)) {
                         state.shops.push({id: generateId(), name: val, classId, categoryId: catId, paymentId: payId, memo: ''});
-                        saveData(); updateShopSelect(classSelectId, shopSelectId, val); 
-                    } else { sel.value = ''; }
-                });
-            }
+                        saveData();
+                    }
+                    updateShopSelect(classSelectId, shopSelectId, val); 
+                }
+            });
         };
 
         function populateSelect(selectId, items, selectedId) { const sel = document.getElementById(selectId); sel.innerHTML = ''; items.forEach(i => { const opt = document.createElement('option'); opt.value = i.id; opt.textContent = i.name; if (i.id === selectedId) opt.selected = true; sel.appendChild(opt); }); }
@@ -940,12 +992,15 @@
         function proceedToClassSelect() { if (currentAmount === "0") return; const grid = document.getElementById('grid-classes'); grid.innerHTML = ''; state.shopClasses.forEach(cls => { const btn = document.createElement('div'); btn.className = 'class-btn'; btn.innerHTML = `<span class="class-btn-icon">${cls.icon}</span><span class="class-btn-text">${cls.name}</span>`; btn.onclick = () => openShopSelect(cls.id); grid.appendChild(btn); }); document.getElementById('modal-class-select').classList.add('active'); }
         function openShopSelect(classId) {
             activeClassId = classId; const cls = state.shopClasses.find(c => c.id === classId); document.getElementById('title-shop-cat').textContent = cls ? cls.name : 'お店を選択'; const list = document.getElementById('list-shops-select'); list.innerHTML = ''; const noShopDiv = document.createElement('div'); noShopDiv.className = 'ios-item clickable cursor-pointer bg-gray-50'; noShopDiv.innerHTML = `<span class="font-medium text-gray-500">お店を指定しない</span>`; noShopDiv.onclick = () => openDetailModal(null); list.appendChild(noShopDiv); const relevantShops = state.shops.filter(s => s.classId === classId);
-            if (relevantShops.length > 0) { relevantShops.forEach(shop => { const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.innerHTML = `<span class="font-medium text-gray-900">${shop.name}</span>`; div.onclick = () => openDetailModal(shop); list.appendChild(div); }); } else { const empty = document.createElement('div'); empty.className = 'p-6 text-center text-gray-400 text-[14px]'; empty.innerHTML = `登録されているお店がありません<br>下のボタンから追加してください`; list.appendChild(empty); } document.getElementById('modal-shops').classList.add('active');
+            if (relevantShops.length > 0) { relevantShops.forEach(shop => { const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.innerHTML = `<span class="font-medium text-gray-900">${shop.name}</span>`; div.onclick = () => openDetailModal(shop); list.appendChild(div); }); } else { const empty = document.createElement('div'); empty.className = 'p-6 text-center text-gray-400 text-[14px]'; empty.innerHTML = `登録されているお店がありません<br>手動で登録してください`; list.appendChild(empty); } document.getElementById('modal-shops').classList.add('active');
         }
 
         function openDetailModal(shopObj = null, txnToEdit = null, shortcutObj = null) {
             closeModal('modal-shops'); closeModal('modal-class-select'); editingTxnId = txnToEdit ? txnToEdit.id : null; const title = document.getElementById('title-detail'); const delBox = document.getElementById('box-delete'); 
-            populateSelect('inp-class', state.shopClasses, null); populateSelect('inp-cat', state.categories, null); populateSelect('inp-payment', state.paymentMethods, null);
+            
+            populateSelect('inp-class', state.shopClasses, null); 
+            populateSelect('inp-cat', state.categories, null); 
+            populateSelect('inp-payment', state.paymentMethods, null);
             
             const d = new Date(); const todayDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
@@ -976,7 +1031,7 @@
         function saveTransaction() {
             const amt = parseInt(document.getElementById('inp-amount').value); if (isNaN(amt) || amt <= 0) return;
             const shopNameVal = document.getElementById('inp-shop').value;
-            const newTxn = { id: editingTxnId || generateId(), amount: amt, date: document.getElementById('inp-date').value, classId: document.getElementById('inp-class').value, categoryId: document.getElementById('inp-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('inp-payment').value, memo: document.getElementById('inp-memo').value.trim(), ts: editingTxnId ? state.transactions.find(t=>t.id===editingTxnId).ts : Date.now() };
+            const newTxn = { id: editingTxnId || generateId(), amount: amt, date: document.getElementById('inp-date').value, classId: document.getElementById('inp-class').value, categoryId: document.getElementById('inp-cat').value, shopName: shopNameVal, paymentId: document.getElementById('inp-payment').value, memo: document.getElementById('inp-memo').value.trim(), ts: editingTxnId ? state.transactions.find(t=>t.id===editingTxnId).ts : Date.now() };
             if (editingTxnId) { const idx = state.transactions.findIndex(t => t.id === editingTxnId); if (idx > -1) state.transactions[idx] = newTxn; } else { state.transactions.push(newTxn); }
             saveData(); closeAllModals(); resetMainView(); switchView('calendar');
         }
@@ -1064,15 +1119,23 @@
         }
 
         window.openFixedEditor = (id = null) => {
-            editingFixedId = id; document.getElementById('title-fixed-editor').textContent = id ? '自動固定費の編集' : '新しい自動固定費'; populateSelect('fx-class', state.shopClasses, null); populateSelect('fx-cat', state.categories, null); populateSelect('fx-pay', state.paymentMethods, null);
+            editingFixedId = id; document.getElementById('title-fixed-editor').textContent = id ? '自動固定費の編集' : '新しい自動固定費'; 
+            populateSelect('fx-class', state.shopClasses, null); populateSelect('fx-cat', state.categories, null); populateSelect('fx-pay', state.paymentMethods, null);
             const delBox = document.getElementById('box-delete-fixed');
+            
             if (id && typeof id === 'string') {
                 delBox.classList.remove('hidden'); delBox.classList.add('block'); const s = state.fixedExpenses.find(x => x.id === id);
-                if(s) { document.getElementById('fx-name').value = s.name; document.getElementById('fx-amount').value = s.amount; document.getElementById('fx-day').value = s.day; document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', s.shopName); document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || ''; }
+                if(s) { 
+                    document.getElementById('fx-name').value = s.name; document.getElementById('fx-amount').value = s.amount; document.getElementById('fx-day').value = s.day; 
+                    document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', s.shopName); 
+                    document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || ''; 
+                }
             } else {
                 editingFixedId = null; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('fx-name').value = ""; document.getElementById('fx-amount').value = ""; document.getElementById('fx-day').value = "1"; document.getElementById('fx-memo').value = "";
-                if(state.shopClasses.length > 0) document.getElementById('fx-class').value = state.shopClasses[0].id; if(state.categories.length > 0) document.getElementById('fx-cat').value = state.categories[0].id; if(state.paymentMethods.length > 0) document.getElementById('fx-pay').value = state.paymentMethods[0].id;
+                if(state.shopClasses.length > 0) document.getElementById('fx-class').value = state.shopClasses[0].id; 
+                if(state.categories.length > 0) document.getElementById('fx-cat').value = state.categories[0].id; 
+                if(state.paymentMethods.length > 0) document.getElementById('fx-pay').value = state.paymentMethods[0].id;
                 updateShopSelect('fx-class','fx-shop', '');
             }
             document.getElementById('modal-fixed-editor').classList.add('active');
@@ -1082,7 +1145,7 @@
             const name = document.getElementById('fx-name').value.trim(); const amt = parseInt(document.getElementById('fx-amount').value); const day = parseInt(document.getElementById('fx-day').value);
             if (!name || isNaN(amt) || amt <= 0 || isNaN(day) || day < 1 || day > 31) { showAlert("登録名、正しい金額、1〜31の日付を入力してください"); return; }
             const shopNameVal = document.getElementById('fx-shop').value;
-            const newFE = { id: editingFixedId || generateId(), name: name, amount: amt, day: day, classId: document.getElementById('fx-class').value, categoryId: document.getElementById('fx-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('fx-pay').value, memo: document.getElementById('fx-memo').value.trim() };
+            const newFE = { id: editingFixedId || generateId(), name: name, amount: amt, day: day, classId: document.getElementById('fx-class').value, categoryId: document.getElementById('fx-cat').value, shopName: shopNameVal, paymentId: document.getElementById('fx-pay').value, memo: document.getElementById('fx-memo').value.trim() };
             if (editingFixedId) { const idx = state.fixedExpenses.findIndex(x => x.id === editingFixedId); if(idx > -1) state.fixedExpenses[idx] = newFE; } else { state.fixedExpenses.push(newFE); }
             saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses();
         };
@@ -1095,7 +1158,7 @@
             const d = new Date(); const defaultDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             showDatePrompt(defaultDate, (selectedDate) => {
                 if(!selectedDate) return;
-                state.transactions.push({ id: generateId(), amount: amt, date: selectedDate, classId: classId, categoryId: catId, shopName: shopName === 'ADD_NEW' ? '' : shopName, paymentId: paymentId, memo: memo, ts: Date.now() });
+                state.transactions.push({ id: generateId(), amount: amt, date: selectedDate, classId: classId, categoryId: catId, shopName: shopName, paymentId: paymentId, memo: memo, ts: Date.now() });
                 saveData(); showAlert(`${selectedDate} に追加しました`); closeModal('modal-fixed-editor'); renderFixedExpenses();
             });
         };
@@ -1171,7 +1234,7 @@
         window.saveShortcutEditor = () => {
             const name = document.getElementById('sh-name').value.trim(); const amt = parseInt(document.getElementById('sh-amount').value); if (!name || isNaN(amt) || amt <= 0) { showAlert("登録名と正しい金額を入力してください"); return; }
             const shopNameVal = document.getElementById('sh-shop').value;
-            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim() };
+            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: shopNameVal, paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim() };
             if (editingShortcutId) { const idx = state.shortcuts.findIndex(x => x.id === editingShortcutId); if(idx > -1) state.shortcuts[idx] = newSC; } else { state.shortcuts.push(newSC); } saveData(); closeModal('modal-shortcut-editor'); renderPanelLists(); renderShortcuts();
         };
 
