@@ -228,6 +228,10 @@
                             お店を選ぶ
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
                         </button>
+                        <button id="btn-quick-save" onclick="quickSaveAmountOnly()" class="w-full mt-3 py-3.5 text-[#007AFF] bg-[rgba(0,122,255,0.08)] rounded-[14px] text-[15px] font-bold transition-all active:bg-[rgba(0,122,255,0.15)] flex items-center justify-center gap-1.5 disabled:opacity-0 disabled:pointer-events-none duration-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            金額だけ保存
+                        </button>
                     </div>
                 </div>
 
@@ -813,8 +817,6 @@
                     let targetDay = parseInt(fe.day); if (isNaN(targetDay)) targetDay = 1;
                     if (targetDay > lastDayOfMonth) targetDay = lastDayOfMonth;
                     if (d === targetDay) {
-                        // 固定費の自動追加はIDを日付から決定的に作る（同じ日の分を複数端末が別々に計算しても、
-                        // クラウド側では同じドキュメントIDに上書きされるだけになり、二重登録されない）
                         const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                         const txnId = `fx_${fe.id}_${dateStr}`;
                         if (!state.transactions.find(t => t.id === txnId)) {
@@ -953,7 +955,39 @@
 
         window.importData = (event) => { const file = event.target.files[0]; if (!file) return; showConfirm("現在のデータはすべて上書きされます。復元しますか？", () => { const reader = new FileReader(); reader.onload = function(e) { try { const imported = JSON.parse(e.target.result); if(imported.transactions && imported.shopClasses) { state = imported; saveData(); showAlert("データの復元が完了しました"); setTimeout(() => location.reload(), 1500); } else { showAlert("正しいバックアップファイルではありません"); } } catch(err) { showAlert("ファイルの読み込みに失敗しました"); } }; reader.readAsText(file); }); event.target.value = ''; };
 
-        function updateAmount() { document.getElementById('display-amount').textContent = Number(currentAmount).toLocaleString('ja-JP'); document.getElementById('btn-next').disabled = (currentAmount === "0"); }
+        function updateAmount() { 
+            document.getElementById('display-amount').textContent = Number(currentAmount).toLocaleString('ja-JP'); 
+            const isZero = (currentAmount === "0");
+            document.getElementById('btn-next').disabled = isZero; 
+            const quickBtn = document.getElementById('btn-quick-save');
+            if (quickBtn) quickBtn.disabled = isZero;
+        }
+
+        function quickSaveAmountOnly() {
+            if (currentAmount === "0") return;
+            const amt = parseInt(currentAmount);
+            if (isNaN(amt) || amt <= 0) return;
+            
+            const d = new Date();
+            const todayDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            
+            state.transactions.push({ 
+                id: generateId(), 
+                amount: amt, 
+                date: todayDate, 
+                classId: "", 
+                categoryId: "", 
+                shopName: "", 
+                paymentId: "", 
+                memo: "あとで詳細を設定", 
+                ts: Date.now() 
+            });
+            
+            saveData(); 
+            resetMainView(); 
+            switchView('calendar'); 
+        }
+
         function handleNumInput(val) { if (val === 'C') currentAmount = "0"; else if (val === 'BACK') { currentAmount = currentAmount.slice(0, -1); if (currentAmount === "") currentAmount = "0"; } else { if (currentAmount === "0") currentAmount = val; else if (currentAmount.length < 8) currentAmount += val; } updateAmount(); }
         document.querySelectorAll('.numpad-btn').forEach(btn => { btn.addEventListener('click', (e) => { if(preventClick) return; handleNumInput(e.currentTarget.getAttribute('data-val')); if (navigator.vibrate) navigator.vibrate(5); }); });
 
@@ -1492,17 +1526,23 @@
                 statusEl.textContent = 'ログイン中…';
                 const provider = new firebase.auth.GoogleAuthProvider();
                 try {
-                    // まずポップアップ方式(ページ遷移なし)を試す。これだとエラーが起きても
-                    // Consoleがリセットされず、問題があればそのまま画面に出せる。
+                    // まずポップアップ方式(ページ遷移なし)を試す。
                     await auth.signInWithPopup(provider);
                 } catch (err) {
-                    console.error('ポップアップでのサインインに失敗', err);
-                    if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment' || err.code === 'auth/cancelled-popup-request')) {
-                        // ポップアップが使えない環境(ポップアップブロック等)では、
-                        // 従来通りページ遷移方式にフォールバックする
+                    if (err && err.code === 'auth/operation-not-supported-in-this-environment') {
+                        // iframeやプレビュー等のセキュアでない環境でのエラー
+                        console.warn('プレビュー環境などの制限によりログインはサポートされていません。', err);
+                        statusEl.textContent = 'この環境（プレビュー画面等）ではGoogleログインがブロックされています。新しいタブで開くか、ローカル保存でご利用ください。';
+                    } else if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request')) {
+                        // ポップアップブロックの場合はリダイレクトを試す
                         statusEl.textContent = 'ログイン画面に移動しています…';
-                        auth.signInWithRedirect(provider);
+                        try {
+                            await auth.signInWithRedirect(provider);
+                        } catch (redirectErr) {
+                            statusEl.textContent = 'ログイン機能が制限された環境です。';
+                        }
                     } else if (err && err.code !== 'auth/popup-closed-by-user') {
+                        console.error('ポップアップでのサインインに失敗', err);
                         statusEl.textContent = 'ログインに失敗しました: ' + (err.message || err.code || '不明なエラー');
                     } else {
                         statusEl.textContent = '';
@@ -1512,8 +1552,14 @@
 
             // ポップアップが使えずリダイレクトした場合の戻り先処理
             auth.getRedirectResult().catch(err => {
-                console.error('サインインに失敗', err);
-                document.getElementById('auth-gate-status').textContent = 'ログインに失敗しました: ' + (err.message || err.code || '不明なエラー');
+                if (err.code === 'auth/operation-not-supported-in-this-environment') {
+                    // プレビュー等の環境起因のものはコンソールエラーを出さずに警告にとどめる
+                    console.warn('プレビュー環境などの制限により、リダイレクトログイン結果の取得はスキップされました。');
+                } else {
+                    console.error('サインインに失敗', err);
+                    const statusEl = document.getElementById('auth-gate-status');
+                    if (statusEl) statusEl.textContent = 'ログインに失敗しました: ' + (err.message || err.code || '不明なエラー');
+                }
             });
 
             auth.onAuthStateChanged(async (user) => {
