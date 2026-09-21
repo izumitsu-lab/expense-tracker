@@ -100,7 +100,7 @@
         }
         .modal-sheet.active { transform: translateY(0); }
 
-        /* ボトムアクションシート (フィルター用) */
+        /* ボトムアクションシート (フィルター & 並び替え用) */
         .action-sheet-backdrop {
             position: absolute;
             inset: 0;
@@ -225,14 +225,14 @@
 
         .hidden-gate { display: none !important; }
 
-        /* リッチなフィルターピルボタン */
+        /* フィルターピルボタン */
         .filter-pill {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 13px;
+            gap: 3px;
+            padding: 5px 9px;
+            border-radius: 12px;
+            font-size: 12px;
             font-weight: 600;
             background: #FFFFFF;
             color: #1C1C1E;
@@ -241,7 +241,8 @@
             transition: all 0.15s ease-out;
             cursor: pointer;
             user-select: none;
-            max-width: 140px;
+            max-width: 110px;
+            shrink-0: 0;
         }
         .filter-pill:active {
             transform: scale(0.95);
@@ -255,6 +256,29 @@
         }
         .filter-pill.active svg {
             color: #FFFFFF;
+        }
+
+        /* 小型並び替えアイコンボタン (カレンダーの左) */
+        .sort-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(142, 142, 147, 0.12);
+            color: #48484A;
+            transition: all 0.15s ease-out;
+            cursor: pointer;
+            user-select: none;
+        }
+        .sort-icon-btn:active {
+            transform: scale(0.92);
+            background: rgba(142, 142, 147, 0.22);
+        }
+        .sort-icon-btn.active {
+            background: rgba(0, 122, 255, 0.15);
+            color: var(--ios-blue);
         }
     </style>
 </head>
@@ -352,69 +376,79 @@
 
         <!-- ==================== CALENDAR / HISTORY VIEW ==================== -->
         <div id="view-calendar" class="view-section overflow-hidden">
-            <div class="px-5 pb-2 pt-6 flex-shrink-0">
-                <div class="flex justify-between items-center mb-3">
+            <div class="px-4 pb-2 pt-4 flex-shrink-0">
+                <!-- 1行目: 「履歴」(大見出し) ＋ 右側に「並び替えアイコン」＋「カレンダーボタン」 -->
+                <div class="flex justify-between items-center mb-2.5">
+                    <h1 class="text-[32px] font-extrabold tracking-tight text-gray-900 leading-none">履歴</h1>
+                    
                     <div class="flex items-center gap-2">
-                        <h1 class="text-[34px] font-bold tracking-tight">履歴</h1>
-                        <button onclick="resetToToday()" class="bg-gray-200 text-[12px] px-2.5 py-1.5 rounded-lg font-bold text-gray-600 active:bg-gray-300 ml-2 tracking-wide">今日</button>
-                    </div>
-                    <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        <input type="date" id="cal-date-picker" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                        <!-- 並び替えアイコン (カレンダーの左) -->
+                        <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                        </button>
+
+                        <!-- カレンダーピッカーボタン -->
+                        <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60 shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <input type="date" id="cal-date-picker" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                        </div>
                     </div>
                 </div>
 
-                <!-- iOSスタイル 検索バー -->
-                <div class="relative flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5 mb-2.5 transition-colors focus-within:bg-[rgba(142,142,147,0.18)]">
-                    <svg class="w-4 h-4 text-gray-400 shrink-0 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="店名・カテゴリー・メモ・金額で検索" class="w-full bg-transparent text-[14px] text-gray-900 outline-none placeholder-gray-400">
-                    <button id="btn-clear-search" onclick="clearCalSearch()" class="hidden text-gray-400 p-0.5 hover:text-gray-600 active:opacity-70">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
-                    </button>
-                </div>
+                <!-- 2行目: 検索窓 (絞り込みの左) ＋ 絞り込みボタン (カテゴリー・支払い) -->
+                <div class="flex items-center gap-2 mb-2.5">
+                    <!-- 検索窓 -->
+                    <div class="relative flex-1 flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5 transition-colors focus-within:bg-[rgba(142,142,147,0.18)] min-w-0">
+                        <svg class="w-3.5 h-3.5 text-gray-400 shrink-0 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="店名・メモ等で検索" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
+                        <button id="btn-clear-search" onclick="clearCalSearch()" class="hidden text-gray-400 p-0.5 hover:text-gray-600 active:opacity-70 shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </div>
 
-                <!-- ミニマルなスマートフィルターボタン（カテゴリー & 支払い方法） -->
-                <div class="flex items-center justify-between pb-3 mb-1">
-                    <div class="flex items-center gap-2">
-                        <!-- カテゴリー選択ボタン -->
+                    <!-- 絞り込みボタン列 -->
+                    <div class="flex items-center gap-1.5 shrink-0">
                         <button id="btn-filter-cat" onclick="openFilterSheet('cat')" class="filter-pill">
                             <span id="lbl-filter-cat" class="truncate">カテゴリー</span>
-                            <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                            <svg class="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
 
-                        <!-- 支払い方法選択ボタン -->
                         <button id="btn-filter-pay" onclick="openFilterSheet('pay')" class="filter-pill">
                             <span id="lbl-filter-pay" class="truncate">支払い</span>
-                            <svg class="w-3.5 h-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                            <svg class="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+
+                        <!-- リセットボタン -->
+                        <button id="btn-filter-reset" onclick="resetAllFilters()" class="text-[11.5px] font-semibold text-[#007AFF] active:opacity-60 hidden px-1 shrink-0">
+                            解除
                         </button>
                     </div>
-
-                    <!-- リセットボタン (何か選択されているときのみ出現) -->
-                    <button id="btn-filter-reset" onclick="resetAllFilters()" class="text-[13px] font-semibold text-[#007AFF] active:opacity-60 hidden">
-                        すべて
-                    </button>
                 </div>
 
-                <!-- セグメントスイッチ (Daily / Weekly / Monthly / Yearly の4分割) -->
-                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-4 w-full relative">
-                    <div id="cal-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow-[0_3px_8px_rgba(0,0,0,0.12),_0_3px_1px_rgba(0,0,0,0.04)] transition-transform duration-200 ease-out w-[calc(25%-2px)] left-[2px]"></div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('daily', 0)">Daily</div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('weekly', 1)">Weekly</div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('monthly', 2)">Monthly</div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('yearly', 3)">Yearly</div>
+                <!-- セグメントスイッチ (Daily / Weekly / Monthly / Yearly) -->
+                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[8px] p-[2px] mb-2 w-full relative">
+                    <div id="cal-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[6px] shadow-[0_2px_6px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-out w-[calc(25%-2px)] left-[2px]"></div>
+                    <div class="flex-1 text-center py-1 text-[12px] font-semibold text-black z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('daily', 0)">Daily</div>
+                    <div class="flex-1 text-center py-1 text-[12px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('weekly', 1)">Weekly</div>
+                    <div class="flex-1 text-center py-1 text-[12px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('monthly', 2)">Monthly</div>
+                    <div class="flex-1 text-center py-1 text-[12px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('yearly', 3)">Yearly</div>
                 </div>
 
                 <!-- 日付ナビ・合計金額表示 -->
-                <div class="flex justify-between items-end mb-2">
-                    <button onclick="shiftDate(-1)" class="p-2 text-[#007AFF] active:opacity-50 -ml-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
-                    <div class="flex flex-col items-center flex-1">
-                        <span class="text-gray-500 text-sm font-medium" id="lbl-period">今日</span>
-                        <div class="text-[28px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-total">0</span></div>
+                <div class="flex justify-between items-center mb-1">
+                    <button onclick="shiftDate(-1)" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-gray-500 text-[13px] font-medium" id="lbl-period">今日</span>
+                        <span class="text-[20px] font-bold text-gray-900 tracking-tight">¥<span id="lbl-total">0</span></span>
                     </div>
-                    <button onclick="shiftDate(1)" class="p-2 text-[#007AFF] active:opacity-50 -mr-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
+                    <button onclick="shiftDate(1)" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="cal-content"><div class="ios-list" id="list-expenses"></div></div>
+
+            <!-- 履歴一覧領域 -->
+            <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="cal-content">
+                <div class="ios-list" id="list-expenses"></div>
+            </div>
         </div>
 
         <!-- ==================== SETTINGS ==================== -->
@@ -556,18 +590,16 @@
             </div>
         </div>
 
-        <!-- ==================== ACTION SHEET (フィルター用ポップアップ) ==================== -->
+        <!-- ==================== ACTION SHEET (フィルター & ソート用ポップアップ) ==================== -->
         <div id="sheet-backdrop" class="action-sheet-backdrop" onclick="closeFilterSheet()"></div>
         <div id="filter-sheet" class="action-sheet">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-2.5 mb-1 shrink-0"></div>
             <div class="px-5 py-3 flex items-center justify-between border-b border-[rgba(60,60,67,0.1)] shrink-0">
                 <button class="text-[#007AFF] text-[16px] font-medium active:opacity-60" onclick="closeFilterSheet()">閉じる</button>
                 <h3 id="sheet-title" class="font-bold text-[17px] text-gray-900 text-center">絞り込み</h3>
-                <button class="text-[#007AFF] text-[16px] font-semibold active:opacity-60" onclick="applySheetFilter(null)">リセット</button>
+                <button id="sheet-reset-btn" class="text-[#007AFF] text-[16px] font-semibold active:opacity-60" onclick="applySheetFilter(null)">リセット</button>
             </div>
-            <div class="flex-1 overflow-y-auto no-scrollbar py-2" id="sheet-list">
-                <!-- 選択肢がここに動的生成されます -->
-            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar py-2" id="sheet-list"></div>
         </div>
 
         <!-- ==================== MODALS ==================== -->
@@ -896,11 +928,12 @@
         let calTab = 'daily';
         let calCurrentDate = new Date(); calCurrentDate.setHours(0,0,0,0);
 
-        // 検索 & フィルター状態
+        // 検索・フィルター・並び替え状態
         let calSearchQuery = '';
         let calSelectedCatId = null;
         let calSelectedPayId = null;
-        let currentSheetType = null; // 'cat' | 'pay'
+        let calSortType = 'date_desc'; // 'date_desc' | 'date_asc' | 'amt_desc' | 'amt_asc'
+        let currentSheetType = null;   // 'cat' | 'pay' | 'sort'
 
         let statsTab = 'monthly';
         let statsCurrentDate = new Date(); statsCurrentDate.setHours(0,0,0,0);
@@ -966,8 +999,7 @@
 
         function processFixedExpenses() {
             if (!state.fixedExpenses || state.fixedExpenses.length === 0) {
-                const d = new Date(); state.lastRunDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; saveData(); return;
-            }
+                const d = new Date(); state.lastRunDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; saveData(); return; }
             const now = new Date(); const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
             if (!state.lastRunDate) { state.lastRunDate = todayStr; saveData(); return; }
             if (state.lastRunDate === todayStr) return;
@@ -1384,7 +1416,6 @@
 
         function deleteTransaction() { showConfirm("この記録を削除しますか？", () => { state.transactions = state.transactions.filter(t => t.id !== editingTxnId); saveData(); closeAllModals(); renderCalendar(); }); }
 
-        // 4分割 (daily, weekly, monthly, yearly) のセグメント切り替え
         function setCalTab(tab, idx) { 
             calTab = tab; 
             document.getElementById('cal-seg-indicator').style.transform = `translateX(${idx * 100}%)`; 
@@ -1403,10 +1434,9 @@
             renderCalendar(); 
         }
 
-        function resetToToday() { calCurrentDate = new Date(); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
         function jumpToDate(dateStr) { if(!dateStr) return; calCurrentDate = new Date(dateStr); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
 
-        /* ==================== 履歴 検索 & ポップアップフィルター ==================== */
+        /* ==================== 履歴 検索・ポップアップフィルター・並び替え ==================== */
 
         function onCalSearchInput(val) {
             calSearchQuery = val.trim().toLowerCase();
@@ -1442,6 +1472,7 @@
             const payBtn = document.getElementById('btn-filter-pay');
             const payLbl = document.getElementById('lbl-filter-pay');
             const resetBtn = document.getElementById('btn-filter-reset');
+            const sortBtn = document.getElementById('btn-sort');
 
             // カテゴリーボタン
             if (calSelectedCatId) {
@@ -1463,6 +1494,11 @@
                 payBtn.classList.remove('active');
             }
 
+            // ソートボタンの状態 (標準の日付降順以外ならアクティブカラー)
+            if (sortBtn) {
+                sortBtn.classList.toggle('active', calSortType !== 'date_desc');
+            }
+
             // 全解除ボタンの表示/非表示
             const isFiltered = calSelectedCatId || calSelectedPayId || calSearchQuery;
             if (isFiltered) {
@@ -1476,6 +1512,8 @@
             currentSheetType = type;
             const titleEl = document.getElementById('sheet-title');
             const listEl = document.getElementById('sheet-list');
+            const resetBtn = document.getElementById('sheet-reset-btn');
+            resetBtn.classList.remove('hidden');
             listEl.innerHTML = '';
 
             const isCat = (type === 'cat');
@@ -1511,6 +1549,47 @@
             document.getElementById('filter-sheet').classList.add('active');
         }
 
+        function openSortSheet() {
+            currentSheetType = 'sort';
+            const titleEl = document.getElementById('sheet-title');
+            const listEl = document.getElementById('sheet-list');
+            const resetBtn = document.getElementById('sheet-reset-btn');
+            resetBtn.classList.add('hidden'); // ソート時はリセットボタン不要
+            listEl.innerHTML = '';
+
+            titleEl.textContent = '履歴の並び替え';
+
+            const sortOptions = [
+                { id: 'date_desc', label: '新しい順 (標準)', icon: '↓' },
+                { id: 'date_asc', label: '古い順', icon: '↑' },
+                { id: 'amt_desc', label: '金額が高い順', icon: '¥↓' },
+                { id: 'amt_asc', label: '金額が安い順', icon: '¥↑' }
+            ];
+
+            sortOptions.forEach(opt => {
+                const isSelected = (calSortType === opt.id);
+                const div = document.createElement('div');
+                div.className = 'ios-item clickable cursor-pointer';
+                div.onclick = () => {
+                    calSortType = opt.id;
+                    closeFilterSheet();
+                    updateFilterButtonsUI();
+                    renderCalendar();
+                };
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400 text-xs font-mono font-bold w-6 text-center">${opt.icon}</span>
+                        <span class="font-medium ${isSelected ? 'text-[#007AFF] font-bold' : 'text-gray-900'}">${opt.label}</span>
+                    </div>
+                    ${isSelected ? '<svg class="w-5 h-5 text-[#007AFF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                `;
+                listEl.appendChild(div);
+            });
+
+            document.getElementById('sheet-backdrop').classList.add('active');
+            document.getElementById('filter-sheet').classList.add('active');
+        }
+
         function closeFilterSheet() {
             document.getElementById('sheet-backdrop').classList.remove('active');
             document.getElementById('filter-sheet').classList.remove('active');
@@ -1533,7 +1612,6 @@
             const target = new Date(calCurrentDate); const y = target.getFullYear(); const m = target.getMonth(); const d = target.getDate();
             let filtered = []; let periodLabel = '';
 
-            // Daily, Weekly, Monthly, Yearly に対応
             if (calTab === 'daily') { 
                 const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; 
                 filtered = state.transactions.filter(t => t.date === dateStr); 
@@ -1565,7 +1643,7 @@
 
             document.getElementById('lbl-period').textContent = periodLabel;
 
-            // フィルター適用 (カテゴリー・支払い方法)
+            // フィルター適用
             if (calSelectedCatId) {
                 filtered = filtered.filter(t => t.categoryId === calSelectedCatId);
             }
@@ -1573,7 +1651,7 @@
                 filtered = filtered.filter(t => t.paymentId === calSelectedPayId);
             }
 
-            // 検索ワード適用 (店名・カテゴリー名・メモ・金額)
+            // 検索ワード適用
             if (calSearchQuery) {
                 filtered = filtered.filter(t => {
                     const shop = (t.shopName || '').toLowerCase();
@@ -1592,7 +1670,19 @@
                 });
             }
 
-            filtered.sort((a,b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts);
+            // 並び替え処理
+            filtered.sort((a, b) => {
+                if (calSortType === 'date_asc') {
+                    return a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.ts - b.ts;
+                } else if (calSortType === 'amt_desc') {
+                    return b.amount !== a.amount ? b.amount - a.amount : (a.date > b.date ? -1 : 1);
+                } else if (calSortType === 'amt_asc') {
+                    return a.amount !== b.amount ? a.amount - b.amount : (a.date > b.date ? -1 : 1);
+                } else {
+                    return a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts;
+                }
+            });
+
             let total = 0;
             
             if (filtered.length === 0) {
@@ -1608,8 +1698,7 @@
                     const subText = isUnset ? '<span class="bg-[#FF3B30] text-white text-[9px] px-1 py-[2px] rounded-[4px] font-bold mr-1 leading-none inline-flex items-center">要編集</span>' : `${escapeHTML(catObj.name)} ${t.memo ? '・'+escapeHTML(t.memo) : ''}`;
                     const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openDetailModal(null, t);
                     
-                    // Yearly時は月日を表示
-                    const dateSubLabel = (calTab === 'yearly') ? `${dt.getMonth()+1}/${dt.getDate()}` : dt.getDate();
+                    const dateSubLabel = (calTab === 'yearly' || calSortType.startsWith('amt')) ? `${dt.getMonth()+1}/${dt.getDate()}` : dt.getDate();
 
                     div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-10 shrink-0"><span class="text-[10px] text-gray-400 font-bold uppercase">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span><span class="text-sm font-bold text-gray-700">${dateSubLabel}</span></div><div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full"><span class="font-bold ${titleClass} truncate tracking-tight text-[16px]">${escapeHTML(displayTitle)}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate flex items-center">${subText}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span><span class="text-[10px] text-[#007AFF] mt-0.5">${escapeHTML(payObj.name)}</span></div>`;
                     list.appendChild(div);
@@ -1815,7 +1904,7 @@
         };
 
         /* ============================================================
-           Firebase クラウド同期 (セキュリティルール準拠・エラー可視化版)
+           Firebase クラウド同期
            ============================================================ */
 
         const firebaseConfig = {
@@ -2080,7 +2169,7 @@
             if (emailLbl) emailLbl.textContent = '同期オフ(オフライン)';
         }
 
-        // アプリケーション起動
+        // アプリ起動
         initData();
         updateAmount();
         updateFilterButtonsUI();
