@@ -267,7 +267,6 @@
         .sort-icon-btn:active { transform: scale(0.92); background: rgba(142, 142, 147, 0.22); }
         .sort-icon-btn.active { background: rgba(0, 122, 255, 0.15); color: var(--ios-blue); }
 
-        /* 「今日に戻る」ピルボタン */
         .today-icon-btn {
             display: inline-flex;
             align-items: center;
@@ -288,7 +287,6 @@
             background: rgba(0, 122, 255, 0.2);
         }
 
-        /* 時間帯ピルボタン */
         .time-pill {
             display: inline-flex;
             align-items: center;
@@ -312,7 +310,6 @@
             box-shadow: 0 3px 10px rgba(0, 122, 255, 0.35);
         }
 
-        /* 30分刻みグリッドボタン */
         .time-grid-btn {
             padding: 11px 0;
             border-radius: 12px;
@@ -707,7 +704,7 @@
             </div>
         </div>
 
-        <!-- 詳細確認モーダル -->
+        <!-- 詳細確認モーダル (青い時間文字タップでiOSネイティブ/Macピッカー起動) -->
         <div id="modal-detail" class="modal-sheet bg-[#F2F2F7] z-[70]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-detail')">キャンセル</button>
@@ -730,13 +727,15 @@
                         <input type="date" id="inp-date" onchange="onDateInputChange(this.value)" class="ios-input font-medium cursor-pointer">
                     </div>
                     
-                    <!-- 朝・昼・夜・30分単位ピルUI -->
+                    <!-- 朝・昼・夜・30分単位ピルUI ＋ 1分単位直接ピッカー連携 -->
                     <div class="ios-item flex-col items-start py-3 gap-2.5" id="item-time-container">
                         <div class="w-full flex justify-between items-center">
                             <span class="text-gray-900 font-medium text-[16px] whitespace-nowrap shrink-0">時間</span>
-                            <div class="flex items-center gap-1.5">
-                                <span id="lbl-display-time" class="text-[#007AFF] font-bold text-[17px] tracking-tight">12:00</span>
+                            <!-- 青い時間文字：タップするとiOSネイティブドラムロール、Macでも確実に入力起動 -->
+                            <div class="relative flex items-center justify-end cursor-pointer py-1 px-2 -mr-2 rounded-lg active:bg-[rgba(0,122,255,0.1)] transition-colors" onclick="triggerNativeTimePicker(event)">
+                                <span id="lbl-display-time" class="text-[#007AFF] font-bold text-[18px] tracking-tight">12:00</span>
                                 <input type="hidden" id="inp-time" value="12:00">
+                                <input type="time" id="inp-native-minute-picker" onchange="onMinutePickerChanged(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10">
                             </div>
                         </div>
 
@@ -966,6 +965,10 @@
         }
 
         // ==================== 時刻ユーティリティ ====================
+        function formatExactTime(date = new Date()) {
+            return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+
         function roundToHalfHour(date = new Date()) {
             const minutes = date.getMinutes();
             const m = (Math.round(minutes / 30) * 30) % 60;
@@ -1236,7 +1239,6 @@
         }
 
         function switchView(target, subTarget) {
-            // すでに履歴画面にいる状態で「履歴」ボタンが押された場合は「今日」に戻る
             const isAlreadyInCalendar = (target === 'calendar' && document.getElementById('view-calendar').classList.contains('active'));
             if (isAlreadyInCalendar) {
                 jumpToToday();
@@ -1418,7 +1420,7 @@
             
             const now = new Date();
             const todayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-            const nowTime = roundToHalfHour(now);
+            const nowTime = formatExactTime(now); // 1分単位で記録
             
             state.transactions.push({ 
                 id: generateId(), 
@@ -1536,7 +1538,7 @@
             document.getElementById('modal-shops').classList.add('active');
         }
 
-        /* ==================== 朝・昼・夜 ＋ 30分刻みボトムシートUI ==================== */
+        /* ==================== 朝・昼・夜 ＋ 30分刻み ＋ 1分単位直接ピッカーUI ==================== */
         let currentTimeSlotMode = 'now';
 
         function renderTimePills(activeTime, isSelected = true) {
@@ -1544,14 +1546,14 @@
             if (!container) return;
             container.innerHTML = '';
 
-            // 1. 「現在」ボタンを一番左に配置
-            const nowTime = roundToHalfHour(new Date());
+            // 1. 「現在」ボタンを一番左に配置 (1分単位の現在時刻をセット)
+            const exactNow = formatExactTime(new Date());
             const isNowSelected = isSelected && (currentTimeSlotMode === 'now');
             const nowBtn = document.createElement('button');
             nowBtn.type = 'button';
             nowBtn.className = `time-pill ${isNowSelected ? 'active' : ''}`;
             nowBtn.innerHTML = `<span>現在</span>`;
-            nowBtn.onclick = () => selectTimeSlot(nowTime, 'now');
+            nowBtn.onclick = () => selectTimeSlot(formatExactTime(new Date()), 'now');
             container.appendChild(nowBtn);
 
             // 2. 朝、昼、夜などのプリセットピル
@@ -1581,10 +1583,13 @@
             // ラベル・inputの更新
             const timeInp = document.getElementById('inp-time');
             const dispLbl = document.getElementById('lbl-display-time');
+            const minutePicker = document.getElementById('inp-native-minute-picker');
+
             if (isSelected && activeTime) {
                 timeInp.value = activeTime;
                 dispLbl.textContent = activeTime;
-                dispLbl.className = 'text-[#007AFF] font-bold text-[17px] tracking-tight';
+                dispLbl.className = 'text-[#007AFF] font-bold text-[18px] tracking-tight';
+                if (minutePicker) minutePicker.value = activeTime;
             } else {
                 timeInp.value = '';
                 dispLbl.textContent = '時間を選択';
@@ -1595,6 +1600,44 @@
         function selectTimeSlot(timeVal, mode = 'preset') {
             currentTimeSlotMode = mode;
             renderTimePills(timeVal, true);
+        }
+
+        // 青い時間の文字をタップして1分単位ピッカーで変更されたとき
+        function onMinutePickerChanged(newTimeStr) {
+            if (!newTimeStr) return;
+            const matchSlot = state.timeSlots.find(s => s.time === newTimeStr);
+            currentTimeSlotMode = matchSlot ? 'preset' : 'custom';
+            renderTimePills(newTimeStr, true);
+        }
+
+        // Mac/PCでも確実にピッカーを立ち上げるトリガー
+        function triggerNativeTimePicker(e) {
+            const picker = document.getElementById('inp-native-minute-picker');
+            if (!picker) return;
+
+            // ブラウザ標準のshowPicker APIに対応している場合は実行 (Mac Chrome/Safariなど)
+            if (typeof picker.showPicker === 'function') {
+                try {
+                    picker.showPicker();
+                    return;
+                } catch (err) {
+                    // showPicker失敗時はフォールバック
+                }
+            }
+
+            // showPicker非対応環境でクリックが透過しなかった場合のフォールバック:
+            // モバイル以外(Mac等)で時間未変更ならプロンプトまたは30分刻みシートを起動
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (!isIOS) {
+                const currentVal = document.getElementById('inp-time').value || formatExactTime(new Date());
+                showPrompt("時刻を1分単位で入力 (HH:mm)", currentVal, (val) => {
+                    if (val && /^([01]\d|2[0-3]):([0-5]\d)$/.test(val)) {
+                        onMinutePickerChanged(val);
+                    } else if (val) {
+                        showAlert("正しい時刻の形式 (例: 14:25) で入力してください");
+                    }
+                });
+            }
         }
 
         function onDateInputChange(newDateStr) {
@@ -1647,13 +1690,13 @@
             
             const now = new Date(); 
             const todayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-            let initTime = roundToHalfHour(now);
+            let initTime = formatExactTime(now);
 
             if (editingTxnId) {
                 title.textContent = '編集'; delBox.classList.remove('hidden'); delBox.classList.add('block');
                 document.getElementById('inp-amount').value = txnToEdit.amount; 
                 document.getElementById('inp-date').value = txnToEdit.date;
-                initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : roundToHalfHour(now));
+                initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : formatExactTime(now));
                 
                 const matchSlot = state.timeSlots.find(s => s.time === initTime);
                 currentTimeSlotMode = matchSlot ? 'preset' : 'custom';
@@ -1665,7 +1708,7 @@
                 title.textContent = shortcutObj.name; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('inp-amount').value = shortcutObj.amount || (currentAmount === "0" ? "" : currentAmount); 
                 document.getElementById('inp-date').value = todayDate;
-                initTime = roundToHalfHour(now);
+                initTime = formatExactTime(now);
                 currentTimeSlotMode = 'now';
                 renderTimePills(initTime, true);
                 document.getElementById('inp-class').value = shortcutObj.classId; updateShopSelect('inp-class', 'inp-shop', shortcutObj.shopName);
@@ -1674,7 +1717,7 @@
                 title.textContent = '詳細確認'; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('inp-amount').value = currentAmount === "0" ? "" : currentAmount; 
                 document.getElementById('inp-date').value = todayDate;
-                initTime = roundToHalfHour(now);
+                initTime = formatExactTime(now);
                 currentTimeSlotMode = 'now';
                 renderTimePills(initTime, true);
                 if (shopObj) {
@@ -1702,7 +1745,7 @@
             }
             let timeVal = document.getElementById('inp-time').value;
             if (!timeVal) {
-                timeVal = roundToHalfHour(new Date());
+                timeVal = formatExactTime(new Date());
             }
             const shopNameVal = document.getElementById('inp-shop').value;
             
