@@ -447,15 +447,17 @@
 
                 <!-- Monthly / Yearly 用ヘッダー -->
                 <div id="stats-period-header" class="block">
-                    <div class="flex justify-between items-center mb-1">
-                        <button onclick="shiftStatsDate(-1)" class="p-2 text-[#007AFF] active:opacity-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
-                        <div class="text-center flex-1"><span class="text-gray-900 text-[17px] font-bold tracking-wide" id="lbl-stats-period"></span></div>
-                        <button onclick="shiftStatsDate(1)" class="p-2 text-[#007AFF] active:opacity-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
-                    </div>
-                    <div class="text-center mt-3 mb-2">
-                        <div class="text-[13px] text-gray-500 font-medium">合計支出</div>
-                        <div class="text-[34px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-stats-total">0</span></div>
-                        <div class="text-[12px] text-gray-400 font-semibold mt-1">1日あたり ¥<span id="lbl-stats-perday">0</span></div>
+                    <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                        <div class="flex justify-between items-center mb-3">
+                            <button onclick="shiftStatsDate(-1)" class="p-1.5 -ml-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
+                            <span class="text-gray-900 text-[15px] font-extrabold tracking-wide" id="lbl-stats-period"></span>
+                            <button onclick="shiftStatsDate(1)" class="p-1.5 -mr-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
+                        </div>
+                        <span class="text-[12px] font-semibold text-gray-400">合計支出</span>
+                        <div class="flex items-baseline gap-1.5 my-1">
+                            <span class="text-[38px] font-black text-[#007AFF] tracking-tight leading-none">¥<span id="lbl-stats-total">0</span></span>
+                        </div>
+                        <div class="text-[13px] font-bold text-gray-400">(¥<span id="lbl-stats-perday">0</span> / 日)</div>
                     </div>
                 </div>
 
@@ -2500,7 +2502,7 @@
                     }
                 }
 
-                // 月平均利用額 & 月平均利用回数の正確な算出（そのお店の初回利用日からの経過日数 ÷ 30.4 で月数換算）
+                // 月平均・日平均利用額の算出（そのお店の初回利用日からの経過日数ベース）
                 const sortedDates = shopTxns.map(t => t.date).filter(Boolean).sort();
                 let monthsCount = 1;
                 if (sortedDates.length > 0) {
@@ -2516,6 +2518,9 @@
                 const monthsCountText = monthsCount.toFixed(1);
                 const monthlySpent = Math.round(totalAmount / monthsCount);
                 const monthlySpentText = `¥${monthlySpent.toLocaleString()}`;
+                // 日平均は「月平均 ÷ 30.4」で算出（月平均の値と常に整合する）
+                const dailySpent = Math.round(monthlySpent / 30.4);
+                const dailySpentText = `¥${dailySpent.toLocaleString()}`;
                 
                 let frequencyText = "";
                 if (monthsCount > 1) {
@@ -2574,6 +2579,7 @@
                             <span class="text-[38px] font-black text-[#007AFF] tracking-tight leading-none">${monthlySpentText}</span>
                             <span class="text-[15px] font-extrabold text-gray-400">/ 月</span>
                         </div>
+                        <div class="text-[13px] font-bold text-gray-400 -mt-1 mb-2">(${dailySpentText} / 日)</div>
 
                         <!-- 通算情報サブ行 -->
                         <div class="text-[12.5px] font-semibold text-gray-500 mb-4 flex items-center gap-1.5">
@@ -2670,9 +2676,9 @@
                     if (perUnitDivisor && perUnitDivisor > 0) {
                         const rateVal = item.val / perUnitDivisor;
                         const rateText = isCount ? `${rateVal.toFixed(1)}回${perUnitLabel}` : `¥${Math.round(rateVal).toLocaleString()}${perUnitLabel}`;
-                        rateHtml = ` <span class="text-[11px] text-gray-400 font-semibold">(${rateText})</span>`;
+                        rateHtml = `<div class="text-right text-[13px] font-bold text-gray-500 mt-0.5">${rateText}</div>`;
                     }
-                    html += `<div class="flex flex-col"><div class="flex justify-between items-end mb-1"><span class="text-[13px] font-medium text-gray-700 truncate w-3/5">${escapeHTML(item.name)}</span><span class="text-[14px] font-bold text-gray-900">${displayVal}${rateHtml}</span></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-[6px] rounded-full transition-all duration-500" style="width: ${pct}%"></div></div></div>`;
+                    html += `<div class="flex flex-col"><div class="flex justify-between items-end mb-1"><span class="text-[14px] font-semibold text-gray-800 truncate w-3/5">${escapeHTML(item.name)}</span><span class="text-[16px] font-bold text-gray-900">${displayVal}</span></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-[6px] rounded-full transition-all duration-500" style="width: ${pct}%"></div></div>${rateHtml}</div>`;
                 });
                 html += `</div>`; if (arr.length > 5) { const dataStr = encodeURIComponent(JSON.stringify(arr)); html += `<button onclick="openStatsDetail('${escapeHTML(title)}', '${dataStr}', ${isCount}, ${perUnitDivisor || 'null'}, '${perUnitLabel}')" class="w-full mt-4 py-2.5 bg-gray-50 text-[#007AFF] font-bold text-[14px] rounded-xl active:bg-gray-100">すべて見る</button>`; }
                 html += `</div>`; return html;
@@ -2692,10 +2698,10 @@
                 if (perUnitDivisor && perUnitDivisor > 0) {
                     const rateVal = item.val / perUnitDivisor;
                     const rateText = isCount ? `${rateVal.toFixed(1)}回${perUnitLabel}` : `¥${Math.round(rateVal).toLocaleString()}${perUnitLabel}`;
-                    rateHtml = `<span class="text-[10px] text-gray-400 font-semibold ml-1">(${rateText})</span>`;
+                    rateHtml = `<div class="text-right text-[13px] font-bold text-gray-500 mt-0.5">${rateText}</div>`;
                 }
                 const div = document.createElement('div'); div.className = "ios-item flex-col items-stretch py-3 px-0 border-none bg-transparent mb-1";
-                div.innerHTML = `<div class="flex justify-between items-center mb-1.5"><span class="font-medium text-[15px] text-gray-900 truncate w-1/2">${escapeHTML(item.name)}</span><div class="text-right"><span class="font-bold text-[15px] text-gray-900">${displayVal}</span>${rateHtml}<span class="text-[11px] text-gray-400 ml-1 inline-block w-8 text-right">${share}%</span></div></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-full rounded-full" style="width: ${pct}%"></div></div>`;
+                div.innerHTML = `<div class="flex justify-between items-center mb-1.5"><span class="font-medium text-[15px] text-gray-900 truncate w-1/2">${escapeHTML(item.name)}</span><div class="text-right"><span class="font-bold text-[15px] text-gray-900">${displayVal}</span><span class="text-[11px] text-gray-400 ml-1 inline-block w-8 text-right">${share}%</span></div></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-full rounded-full" style="width: ${pct}%"></div></div>${rateHtml}`;
                 list.appendChild(div);
             });
             document.getElementById('modal-stats-detail').classList.add('active');
