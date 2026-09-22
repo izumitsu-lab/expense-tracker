@@ -2413,12 +2413,10 @@
                 let latestTime = -Infinity;
 
                 shopTxns.forEach(t => {
-                    // 時間
                     const timeStr = t.time || (t.ts ? formatTimeFromTs(t.ts) : '12:00');
                     const h = parseInt(timeStr.split(':')[0], 10);
                     if (!isNaN(h) && h >= 0 && h < 24) hourCounts[h]++;
 
-                    // 曜日 & 期間
                     if (t.date) {
                         const dObj = new Date(t.date);
                         if (!isNaN(dObj.getTime())) {
@@ -2441,7 +2439,10 @@
                     }
                 }
 
-                // 最多の曜日
+                // 柔軟な曜日傾向の判定
+                const weekdayCount = dayCounts[1] + dayCounts[2] + dayCounts[3] + dayCounts[4] + dayCounts[5];
+                const weekendCount = dayCounts[0] + dayCounts[6];
+                
                 let maxDayCount = -1;
                 let popularDayIndex = 0;
                 dayCounts.forEach((cnt, idx) => {
@@ -2450,21 +2451,49 @@
                         popularDayIndex = idx;
                     }
                 });
-                const popularDayText = maxDayCount > 0 ? `${dayNames[popularDayIndex]}曜日` : "未定";
 
-                // 月平均利用回数の算出
+                let popularDayText = "いつでも";
+                if (count <= 2) {
+                    popularDayText = maxDayCount > 0 ? `${dayNames[popularDayIndex]}曜日` : "いつでも";
+                } else {
+                    const topRatio = maxDayCount / count;
+                    const weekendRatio = weekendCount / count;
+                    const weekdayRatio = weekdayCount / count;
+
+                    // 特定の1曜日が全体の35%以上を占め、突出している場合
+                    if (topRatio >= 0.35) {
+                        popularDayText = `${dayNames[popularDayIndex]}曜日`;
+                    } else if (weekendRatio >= 0.50) {
+                        // 土日率が50%以上（通常土日は2/7＝約28%なので十分強い傾向）
+                        popularDayText = "土日・休日";
+                    } else if (weekdayRatio >= 0.85) {
+                        // 平日率が85%以上（ほぼ平日のみ）
+                        popularDayText = "平日中心";
+                    } else {
+                        popularDayText = "いつでも";
+                    }
+                }
+
+                // 月平均利用額 & 月平均利用回数の算出
+                let monthlySpentText = `¥${totalAmount.toLocaleString()}`;
                 let frequencyText = `${count}回`;
+
                 if (earliestTime !== Infinity && latestTime !== Infinity) {
                     const diffDays = Math.max(1, Math.round((latestTime - earliestTime) / (1000 * 60 * 60 * 24)));
                     if (diffDays >= 30) {
                         const months = diffDays / 30.4375;
+                        const monthlySpent = Math.round(totalAmount / months);
+                        monthlySpentText = `¥${monthlySpent.toLocaleString()}`;
                         const perMonth = (count / months).toFixed(1);
                         frequencyText = `月 ${parseFloat(perMonth)}回`;
                     } else if (diffDays >= 7) {
                         const weeks = diffDays / 7;
+                        const monthlySpentEst = Math.round((totalAmount / weeks) * 4.345);
+                        monthlySpentText = `¥${monthlySpentEst.toLocaleString()}`;
                         const perWeek = (count / weeks).toFixed(1);
                         frequencyText = `週 ${parseFloat(perWeek)}回`;
                     } else {
+                        monthlySpentText = `¥${totalAmount.toLocaleString()}`;
                         frequencyText = `計 ${count}回`;
                     }
                 }
@@ -2475,7 +2504,7 @@
                 dayNames.forEach((dName, idx) => {
                     const cnt = dayCounts[idx];
                     const pct = Math.max((cnt / maxDayVal) * 100, cnt > 0 ? 8 : 2);
-                    const isTopDay = (idx === popularDayIndex && maxDayCount > 0);
+                    const isTopDay = (idx === popularDayIndex && maxDayCount > 0 && popularDayText.includes('曜日'));
                     const labelColor = (idx === 0) ? 'text-[#FF3B30]' : (idx === 6 ? 'text-[#007AFF]' : 'text-gray-500');
                     const barColor = isTopDay ? 'bg-[#007AFF]' : 'bg-[rgba(142,142,147,0.25)]';
                     
@@ -2506,31 +2535,42 @@
                 });
 
                 container.innerHTML = `
-                    <!-- メインサマリーカード -->
+                    <!-- メインサマリーカード（月平均利用額を大きく主役に配置） -->
                     <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
-                        <div class="text-[19px] font-black text-gray-900 mb-0.5 tracking-tight">${escapeHTML(statsSelectedShopName)}</div>
-                        <div class="text-[28px] font-black text-[#007AFF] tracking-tight mb-4 leading-none flex items-baseline gap-2">
-                            ¥${totalAmount.toLocaleString()}
-                            <span class="text-[14px] font-bold text-gray-400">/ 累計 ${count}回</span>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[18px] font-extrabold text-gray-900 truncate tracking-tight">${escapeHTML(statsSelectedShopName)}</span>
+                            <span class="text-[12px] font-semibold text-gray-400">平均月額</span>
+                        </div>
+
+                        <!-- 月額メイン数字 -->
+                        <div class="flex items-baseline gap-1.5 my-2">
+                            <span class="text-[38px] font-black text-[#007AFF] tracking-tight leading-none">${monthlySpentText}</span>
+                            <span class="text-[15px] font-extrabold text-gray-400">/ 月</span>
+                        </div>
+
+                        <!-- 通算情報サブ行 -->
+                        <div class="text-[12.5px] font-semibold text-gray-500 mb-4 flex items-center gap-1.5">
+                            <span class="inline-block w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+                            通算支出: <span class="font-bold text-gray-700">¥${totalAmount.toLocaleString()}</span> （全 ${count}回）
                         </div>
 
                         <!-- 2×2 グリッド指標 -->
                         <div class="grid grid-cols-2 gap-2.5 pt-3 border-t border-[rgba(60,60,67,0.08)]">
                             <div class="bg-[#F2F2F7] rounded-xl p-3 flex flex-col justify-center">
-                                <span class="text-[11px] font-semibold text-gray-500 tracking-wide">よく使う時間</span>
-                                <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">${popularTimeRange}</span>
+                                <span class="text-[11px] font-semibold text-gray-500 tracking-wide">よく行く曜日</span>
+                                <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">${popularDayText}</span>
                             </div>
                             <div class="bg-[#F2F2F7] rounded-xl p-3 flex flex-col justify-center">
-                                <span class="text-[11px] font-semibold text-gray-500 tracking-wide">平均単価</span>
-                                <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">¥${average.toLocaleString()}</span>
+                                <span class="text-[11px] font-semibold text-gray-500 tracking-wide">よく使う時間</span>
+                                <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">${popularTimeRange}</span>
                             </div>
                             <div class="bg-[#F2F2F7] rounded-xl p-3 flex flex-col justify-center">
                                 <span class="text-[11px] font-semibold text-gray-500 tracking-wide">利用ペース</span>
                                 <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">${frequencyText}</span>
                             </div>
                             <div class="bg-[#F2F2F7] rounded-xl p-3 flex flex-col justify-center">
-                                <span class="text-[11px] font-semibold text-gray-500 tracking-wide">よく行く曜日</span>
-                                <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">${popularDayText}</span>
+                                <span class="text-[11px] font-semibold text-gray-500 tracking-wide">平均単価</span>
+                                <span class="text-[17px] font-extrabold text-gray-900 mt-0.5">¥${average.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
@@ -2538,8 +2578,8 @@
                     <!-- 曜日別の利用傾向 -->
                     <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
                         <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-[13px] font-bold text-gray-900 tracking-wide">曜日別の利用傾向</h3>
-                            <span class="text-[11px] text-gray-400 font-semibold">${popularDayText}が最多</span>
+                            <h3 class="text-[13px] font-bold text-gray-900 tracking-wide">曜日別の利用回数</h3>
+                            <span class="text-[11px] text-[#007AFF] font-bold">${popularDayText}</span>
                         </div>
                         <div class="flex justify-between items-end gap-1 px-1">${dayBarsHtml}</div>
                     </div>
