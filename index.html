@@ -794,7 +794,7 @@
                     <div class="ios-item py-4">
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0">金額</span>
                         <div class="flex items-center flex-grow justify-end">
-                            <input type="number" id="inp-amount" class="ios-input text-gray-900 font-bold text-[28px] p-0 h-8" placeholder="金額を入力">
+                            <input type="number" id="inp-amount" min="0" class="ios-input text-gray-900 font-bold text-[28px] p-0 h-8" placeholder="金額を入力">
                             <span class="ml-1 text-gray-500 font-bold text-xl">円</span>
                         </div>
                     </div>
@@ -927,7 +927,7 @@
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
                 <div class="ios-list shadow-sm mb-6">
                     <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">登録名</span><input type="text" id="sh-name" class="ios-input text-left ml-0" placeholder="例: バス通勤"></div>
-                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span><input type="number" id="sh-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="任意"></div>
+                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span><input type="number" id="sh-amount" min="0" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="任意"></div>
                 </div>
                 <h3 class="text-xs text-gray-500 mb-2 ml-2 font-semibold">自動入力される内容</h3>
                 <div class="ios-list shadow-sm">
@@ -959,7 +959,7 @@
                     <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">登録名</span><input type="text" id="fx-name" class="ios-input text-left ml-0" placeholder="例: 家賃、電気代"></div>
                     <div class="ios-item" id="row-fx-amount">
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span>
-                        <input type="number" id="fx-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000">
+                        <input type="number" id="fx-amount" min="0" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000">
                     </div>
                     <div class="ios-item">
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額は未定（あとで確定）</span>
@@ -2473,8 +2473,17 @@
                     }
                 }
 
-                // 月平均利用額 & 月平均利用回数の正確な算出（ユニーク利用月数ベース）
-                const monthsCount = Math.max(1, uniqueMonths.size);
+                // 月平均利用額 & 月平均利用回数の正確な算出（初回利用からの経過月数ベース）
+                const sortedDates = shopTxns.map(t => t.date).filter(Boolean).sort();
+                let monthsCount = 1;
+                if (sortedDates.length > 0) {
+                    const firstDate = new Date(sortedDates[0]);
+                    const today = new Date();
+                    if (!isNaN(firstDate.getTime())) {
+                        const elapsed = (today.getFullYear() - firstDate.getFullYear()) * 12 + (today.getMonth() - firstDate.getMonth()) + 1;
+                        monthsCount = Math.max(1, elapsed);
+                    }
+                }
                 const monthlySpent = Math.round(totalAmount / monthsCount);
                 const monthlySpentText = `¥${monthlySpent.toLocaleString()}`;
                 
@@ -2903,7 +2912,7 @@
                 const sortable = new Sortable(listDiv, {
                     group: 'sharedShops', handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50',
                     onStart: function(evt) { document.querySelectorAll('.empty-zone').forEach(el => el.style.display = 'none'); },
-                    onEnd: function(evt) { const shopObj = state.shops.find(s => s.id === evt.item.getAttribute('data-id')); if(shopObj) shopObj.classId = evt.to.getAttribute('data-class-id'); const newShopsOrder = []; document.querySelectorAll('#list-set-shops-container .ios-item').forEach(el => { const sObj = state.shops.find(s => s.id === el.getAttribute('data-id')); if(sObj) newShopsOrder.push(sObj); }); state.shops = newShopsOrder; saveData(); renderGroupedShopsList(); }
+                    onEnd: function(evt) { const shopObj = state.shops.find(s => s.id === evt.item.getAttribute('data-id')); if(shopObj) shopObj.classId = evt.to.getAttribute('data-class-id'); const newShopsOrder = []; const seenIds = new Set(); document.querySelectorAll('#list-set-shops-container .ios-item').forEach(el => { const sObj = state.shops.find(s => s.id === el.getAttribute('data-id')); if(sObj) { newShopsOrder.push(sObj); seenIds.add(sObj.id); } }); state.shops.forEach(s => { if (!seenIds.has(s.id)) newShopsOrder.push(s); }); state.shops = newShopsOrder; saveData(); renderGroupedShopsList(); }
                 });
                 shopSortables.push(sortable);
             });
