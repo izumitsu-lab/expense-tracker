@@ -455,6 +455,7 @@
                     <div class="text-center mt-3 mb-2">
                         <div class="text-[13px] text-gray-500 font-medium">合計支出</div>
                         <div class="text-[34px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-stats-total">0</span></div>
+                        <div class="text-[12px] text-gray-400 font-semibold mt-1">1日あたり ¥<span id="lbl-stats-perday">0</span></div>
                     </div>
                 </div>
 
@@ -2595,9 +2596,15 @@
 
             // ===== Monthly / Yearly タブのレンダリング =====
             const target = new Date(statsCurrentDate); const y = target.getFullYear(); const m = target.getMonth();
-            let filtered = []; let periodLabel = '';
-            if (statsTab === 'monthly') { const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`; filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); periodLabel = `${y}年${m+1}月`; } 
-            else { const yearPrefix = `${y}-`; filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix)); periodLabel = `${y}年`; }
+            let filtered = []; let periodLabel = ''; let periodStart, periodEnd;
+            if (statsTab === 'monthly') {
+                const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`; filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); periodLabel = `${y}年${m+1}月`;
+                periodStart = new Date(y, m, 1); periodEnd = new Date(y, m + 1, 0);
+            } else {
+                const yearPrefix = `${y}-`; filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix)); periodLabel = `${y}年`;
+                periodStart = new Date(y, 0, 1); periodEnd = new Date(y, 11, 31);
+            }
+            periodStart.setHours(0, 0, 0, 0); periodEnd.setHours(0, 0, 0, 0);
             document.getElementById('lbl-stats-period').textContent = periodLabel;
             let total = 0; const catMap = {}; const payMap = {}; const shopAmtMap = {}; const shopCntMap = {};
             filtered.forEach(t => {
@@ -2605,6 +2612,23 @@
                 const shopName = t.shopName || '未指定'; shopAmtMap[shopName] = (shopAmtMap[shopName] || 0) + t.amount; shopCntMap[shopName] = (shopCntMap[shopName] || 0) + 1;
             });
             document.getElementById('lbl-stats-total').textContent = total.toLocaleString();
+
+            // 1日あたりの金額：表示中の期間（月 or 年）の開始日と、家計簿全体の初回入力日のうち「遅い方」を起点とし、
+            // 今日と期間末のうち「早い方」までの経過日数で割る（データが存在しない期間を分母に含めないため）
+            const allDatesSorted = state.transactions.map(t => t.date).filter(Boolean).sort();
+            let perDayText = '0';
+            if (allDatesSorted.length > 0) {
+                const firstEverDate = new Date(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const effectiveStart = firstEverDate > periodStart ? firstEverDate : periodStart;
+                const effectiveEnd = today < periodEnd ? today : periodEnd;
+                const elapsedDays = Math.round((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
+                if (elapsedDays > 0) {
+                    perDayText = Math.round(total / elapsedDays).toLocaleString();
+                }
+            }
+            document.getElementById('lbl-stats-perday').textContent = perDayText;
+
             if (total === 0) { container.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium">データがありません</div>`; return; }
 
             function buildSection(title, mapObj, idResolver, isCount = false) {
