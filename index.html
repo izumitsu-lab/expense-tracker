@@ -742,7 +742,7 @@
                         <input type="date" id="inp-date" onchange="onDateInputChange(this.value)" class="ios-input font-medium cursor-pointer">
                     </div>
                     
-                    <!-- 朝・昼・夜・クイック時間ピルUI ＋ 1分単位直接ピッカー連携 -->
+                    <!-- 朝・昼・夜・選択ピルUI ＋ 1分単位直接ピッカー連携 -->
                     <div class="ios-item flex-col items-start py-3 gap-2.5" id="item-time-container">
                         <div class="w-full flex justify-between items-center">
                             <span class="text-gray-900 font-medium text-[16px] whitespace-nowrap shrink-0">時間</span>
@@ -753,7 +753,7 @@
                             </div>
                         </div>
 
-                        <!-- 時間帯ピル群 (現在が先頭、時間帯、クイックピッカー) -->
+                        <!-- 時間帯ピル群 (現在が先頭、朝・昼・夜、選択ピル) -->
                         <div class="w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="container-time-pills"></div>
                     </div>
 
@@ -1601,7 +1601,7 @@
             document.getElementById('modal-shops').classList.add('active');
         }
 
-        /* ==================== 朝・昼・夜 ＋ クイック時間ピルUI ==================== */
+        /* ==================== 朝・昼・夜 ＋ 選択ピルUI ==================== */
         let currentTimeSlotMode = 'now';
 
         function renderTimePills(activeTime, isSelected = true) {
@@ -1635,7 +1635,7 @@
             const customBtn = document.createElement('button');
             customBtn.type = 'button';
             customBtn.className = `time-pill ${isCustomSelected ? 'active' : ''}`;
-            customBtn.innerHTML = `<span>時間ピッカー ⏱️</span>`;
+            customBtn.innerHTML = `<span>選択 ⏱️</span>`;
             customBtn.onclick = () => openTimePickerSheet();
             container.appendChild(customBtn);
 
@@ -1703,7 +1703,6 @@
             renderTimePills('', false);
         }
 
-        // ポップアップ時間ピッカーの表示（設定リストから動的生成）
         function openTimePickerSheet() {
             const grid = document.getElementById('grid-quick-times');
             grid.innerHTML = '';
