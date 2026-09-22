@@ -240,7 +240,7 @@
             cursor: pointer;
             user-select: none;
             max-width: 110px;
-            shrink-0: 0;
+            flex-shrink: 0;
         }
         .filter-pill:active { transform: scale(0.95); background: #F2F2F7; }
         .filter-pill.active {
@@ -399,7 +399,7 @@
             </div>
         </div>
 
-        <!-- ==================== FIXED EXPENSES VIEW (名称を「固定費」に統一) ==================== -->
+        <!-- ==================== FIXED EXPENSES VIEW ==================== -->
         <div id="view-fixed" class="view-section overflow-hidden">
             <div class="px-5 pt-6 pb-2 shrink-0">
                 <h1 class="text-[34px] font-bold mb-2 tracking-tight">固定費</h1>
@@ -440,12 +440,9 @@
                 <div class="flex justify-between items-center mb-2.5">
                     <h1 class="text-[32px] font-extrabold tracking-tight text-gray-900 leading-none">履歴</h1>
                     
-                    <!-- ② 右上ボタン順序：今日、カレンダー、並び順 -->
                     <div class="flex items-center gap-2">
                         <!-- 今日 -->
-                        <button onclick="jumpToToday()" class="today-icon-btn" title="今日の日付に戻る">
-                            今日
-                        </button>
+                        <button onclick="jumpToToday()" class="today-icon-btn" title="今日の日付に戻る">今日</button>
 
                         <!-- カレンダー -->
                         <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60 shrink-0">
@@ -527,9 +524,10 @@
                     <div class="ios-item clickable" onclick="openPanel('panel-categories')"><span class="font-medium">カテゴリーの管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                 </div>
                 
-                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">入力・お店</h2>
+                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">入力・時間・お店</h2>
                 <div class="ios-list">
                     <div class="ios-item clickable" onclick="openPanel('panel-time-slots')"><span class="font-medium">時間帯（朝・昼・夜）の設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    <div class="ios-item clickable" onclick="openPanel('panel-quick-times')"><span class="font-medium">クイック時間ピッカーの設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-shortcuts')"><span class="font-medium">クイック入力 (スワイプ画面)</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-shops')"><span class="font-medium">お店リストと詳細設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
@@ -576,6 +574,7 @@
             </div>
         </div>
 
+        <!-- 朝・昼・夜の設定パネル -->
         <div id="panel-time-slots" class="slide-panel">
             <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
                 <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-time-slots')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
@@ -583,8 +582,21 @@
                 <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="openTimeSlotModal(null)">追加</button></div>
             </div>
             <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
-                <p class="text-xs text-gray-500 mb-3 ml-2">朝・昼・夜などのデフォルト時間を設定できます。<br>入力画面でワンタップで指定できるようになります。</p>
+                <p class="text-xs text-gray-500 mb-3 ml-2">朝・昼・夜などの基準時刻を設定します。<br>入力画面のピルとしてワンタップで選べます。</p>
                 <div class="ios-list" id="list-set-time-slots"></div>
+            </div>
+        </div>
+
+        <!-- クイック時間ピッカー設定パネル -->
+        <div id="panel-quick-times" class="slide-panel">
+            <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-quick-times')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3 whitespace-nowrap">ピッカーの設定</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="openQuickTimeModal(null)">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
+                <p class="text-xs text-gray-500 mb-3 ml-2">ポップアップで一覧表示される時刻リストです。<br>追加・削除やドラッグで並び替えが可能です。</p>
+                <div class="ios-list" id="list-set-quick-times"></div>
             </div>
         </div>
 
@@ -671,17 +683,17 @@
             <div class="flex-1 overflow-y-auto no-scrollbar py-2" id="sheet-list"></div>
         </div>
 
-        <!-- ==================== 30分刻み 時間選択ボトムシート ==================== -->
+        <!-- ==================== クイック時間選択ボトムシート ==================== -->
         <div id="sheet-time-backdrop" class="action-sheet-backdrop" onclick="closeTimePickerSheet()"></div>
         <div id="sheet-time-picker" class="action-sheet">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-2.5 mb-1 shrink-0"></div>
             <div class="px-5 py-3 flex items-center justify-between border-b border-[rgba(60,60,67,0.1)] shrink-0">
                 <button class="text-[#007AFF] text-[16px] font-medium active:opacity-60" onclick="closeTimePickerSheet()">閉じる</button>
-                <h3 class="font-bold text-[17px] text-gray-900 text-center">時間を選択 (30分単位)</h3>
+                <h3 class="font-bold text-[17px] text-gray-900 text-center">時間を選択</h3>
                 <div class="w-12"></div>
             </div>
             <div class="flex-1 overflow-y-auto no-scrollbar p-4" style="max-height: 60vh;">
-                <div class="grid grid-cols-4 gap-2" id="grid-30m-times"></div>
+                <div class="grid grid-cols-4 gap-2" id="grid-quick-times"></div>
             </div>
         </div>
 
@@ -707,7 +719,7 @@
             </div>
         </div>
 
-        <!-- 詳細確認モーダル (青い時間文字タップでiOSネイティブ/Macピッカー起動) -->
+        <!-- 詳細確認モーダル -->
         <div id="modal-detail" class="modal-sheet bg-[#F2F2F7] z-[70]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-detail')">キャンセル</button>
@@ -730,7 +742,7 @@
                         <input type="date" id="inp-date" onchange="onDateInputChange(this.value)" class="ios-input font-medium cursor-pointer">
                     </div>
                     
-                    <!-- 朝・昼・夜・30分単位ピルUI ＋ 1分単位直接ピッカー連携 -->
+                    <!-- 朝・昼・夜・クイック時間ピルUI ＋ 1分単位直接ピッカー連携 -->
                     <div class="ios-item flex-col items-start py-3 gap-2.5" id="item-time-container">
                         <div class="w-full flex justify-between items-center">
                             <span class="text-gray-900 font-medium text-[16px] whitespace-nowrap shrink-0">時間</span>
@@ -741,7 +753,7 @@
                             </div>
                         </div>
 
-                        <!-- 時間帯ピル群 (現在が先頭、時間表記なし) -->
+                        <!-- 時間帯ピル群 (現在が先頭、時間帯、クイックピッカー) -->
                         <div class="w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="container-time-pills"></div>
                     </div>
 
@@ -782,7 +794,7 @@
             </div>
         </div>
 
-        <!-- 時間帯編集モーダル -->
+        <!-- 時間帯（朝・昼・夜）編集モーダル -->
         <div id="modal-timeslot-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-timeslot-editor')">キャンセル</button>
@@ -802,6 +814,26 @@
                 </div>
                 <div id="box-delete-timeslot" class="mt-6 hidden">
                     <button class="w-full py-4 text-[#FF3B30] font-bold bg-white rounded-xl shadow-sm active:bg-red-50 text-[16px] border border-[rgba(255,59,48,0.2)]" onclick="deleteTimeSlot()">この時間帯を削除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- クイック時間ピッカー編集モーダル -->
+        <div id="modal-quicktime-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-quicktime-editor')">キャンセル</button>
+                <h2 class="font-bold text-[17px]" id="title-quicktime-editor">ピッカー時刻の設定</h2>
+                <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveQuickTimeEditor()">完了</button>
+            </div>
+            <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
+                <div class="ios-list shadow-sm">
+                    <div class="ios-item">
+                        <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">時刻</span>
+                        <input type="time" id="ed-qt-time" class="ios-input text-right font-bold text-[#007AFF] text-[18px]">
+                    </div>
+                </div>
+                <div id="box-delete-quicktime" class="mt-6 hidden">
+                    <button class="w-full py-4 text-[#FF3B30] font-bold bg-white rounded-xl shadow-sm active:bg-red-50 text-[16px] border border-[rgba(255,59,48,0.2)]" onclick="deleteQuickTime()">この時刻を削除</button>
                 </div>
             </div>
         </div>
@@ -853,7 +885,6 @@
             </div>
         </div>
 
-        <!-- ③④ 固定費エディター (文言修正＆金額未定チェック対応) -->
         <div id="modal-fixed-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-fixed-editor')">キャンセル</button>
@@ -980,17 +1011,20 @@
             return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         }
 
-        function roundToHalfHour(date = new Date()) {
-            const minutes = date.getMinutes();
-            const m = (Math.round(minutes / 30) * 30) % 60;
-            const h = (minutes >= 45 ? date.getHours() + 1 : date.getHours()) % 24;
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        }
-
         function formatTimeFromTs(ts) {
             if (!ts) return "12:00";
             const d = new Date(ts);
             return isNaN(d.getTime()) ? "12:00" : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+
+        // 5:00から23:00までの60分刻みのデフォルト生成
+        function generateDefaultQuickTimes() {
+            const list = [];
+            for (let h = 5; h <= 23; h++) {
+                const timeStr = `${String(h).padStart(2, '0')}:00`;
+                list.push({ id: `qt_${h}`, time: timeStr });
+            }
+            return list;
         }
         
         const DEFAULT_STATE = {
@@ -1000,6 +1034,7 @@
             { "id": "ts_noon", "name": "昼", "time": "12:00" },
             { "id": "ts_night", "name": "夜", "time": "19:00" }
           ],
+          "quickTimes": generateDefaultQuickTimes(),
           "shopClasses": [
             { "id": "sc1", "name": "コンビニ", "icon": "🏪" },
             { "id": "sc2", "name": "スーパー", "icon": "🛒" },
@@ -1096,6 +1131,7 @@
         let editingShortcutId = null;
         let editingFixedId = null;
         let editingTimeSlotId = null;
+        let editingQuickTimeId = null;
         
         let calTab = 'daily';
         let calCurrentDate = new Date(); calCurrentDate.setHours(0,0,0,0);
@@ -1116,7 +1152,6 @@
         let isFlowFromInput = false;
 
         function updateUnsetBadge() {
-            // 未設定または金額未定の件数をバッジとしてカウント
             const unsetCount = state.transactions.filter(t => (!t.classId && !t.categoryId) || t.isPending || t.amount === 0).length;
             const badge = document.getElementById('nav-badge-calendar');
             if (!badge) return;
@@ -1139,6 +1174,7 @@
                     const parsed = JSON.parse(stored);
                     state.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
                     state.timeSlots = Array.isArray(parsed.timeSlots) && parsed.timeSlots.length > 0 ? parsed.timeSlots : DEFAULT_STATE.timeSlots;
+                    state.quickTimes = Array.isArray(parsed.quickTimes) && parsed.quickTimes.length > 0 ? parsed.quickTimes : DEFAULT_STATE.quickTimes;
                     state.shopClasses = Array.isArray(parsed.shopClasses) ? parsed.shopClasses : DEFAULT_STATE.shopClasses;
                     state.categories = Array.isArray(parsed.categories) ? parsed.categories : DEFAULT_STATE.categories;
                     state.paymentMethods = Array.isArray(parsed.paymentMethods) ? parsed.paymentMethods : DEFAULT_STATE.paymentMethods;
@@ -1153,6 +1189,9 @@
             }
             if (!state.timeSlots || state.timeSlots.length === 0) {
                 state.timeSlots = JSON.parse(JSON.stringify(DEFAULT_STATE.timeSlots));
+            }
+            if (!state.quickTimes || state.quickTimes.length === 0) {
+                state.quickTimes = JSON.parse(JSON.stringify(DEFAULT_STATE.quickTimes));
             }
             processFixedExpenses(); 
             updateUnsetBadge();
@@ -1261,7 +1300,6 @@
         }
 
         function switchView(target, subTarget) {
-            // ① すでに履歴画面にいる状態でメニューの「履歴」がタップされた場合のみ「今日」に戻る
             const isAlreadyInCalendar = (target === 'calendar' && document.getElementById('view-calendar').classList.contains('active'));
             if (isAlreadyInCalendar) {
                 jumpToToday();
@@ -1369,7 +1407,7 @@
 
         window.exportData = async () => {
             const exportPayload = {
-                version: "2.0",
+                version: "2.1",
                 exportedAt: new Date().toISOString(),
                 ...state
             };
@@ -1403,6 +1441,7 @@
 
                         state.transactions = imported.transactions;
                         state.timeSlots = Array.isArray(imported.timeSlots) && imported.timeSlots.length > 0 ? imported.timeSlots : DEFAULT_STATE.timeSlots;
+                        state.quickTimes = Array.isArray(imported.quickTimes) && imported.quickTimes.length > 0 ? imported.quickTimes : DEFAULT_STATE.quickTimes;
                         state.shopClasses = imported.shopClasses;
                         state.categories = imported.categories;
                         state.paymentMethods = imported.paymentMethods;
@@ -1562,7 +1601,7 @@
             document.getElementById('modal-shops').classList.add('active');
         }
 
-        /* ==================== 朝・昼・夜 ＋ 30分刻み ＋ 1分単位直接ピッカーUI ==================== */
+        /* ==================== 朝・昼・夜 ＋ クイック時間ピルUI ==================== */
         let currentTimeSlotMode = 'now';
 
         function renderTimePills(activeTime, isSelected = true) {
@@ -1570,7 +1609,6 @@
             if (!container) return;
             container.innerHTML = '';
 
-            const exactNow = formatExactTime(new Date());
             const isNowSelected = isSelected && (currentTimeSlotMode === 'now');
             const nowBtn = document.createElement('button');
             nowBtn.type = 'button';
@@ -1597,7 +1635,7 @@
             const customBtn = document.createElement('button');
             customBtn.type = 'button';
             customBtn.className = `time-pill ${isCustomSelected ? 'active' : ''}`;
-            customBtn.innerHTML = `<span>30分単位 ⏱️</span>`;
+            customBtn.innerHTML = `<span>時間ピッカー ⏱️</span>`;
             customBtn.onclick = () => openTimePickerSheet();
             container.appendChild(customBtn);
 
@@ -1665,25 +1703,27 @@
             renderTimePills('', false);
         }
 
+        // ポップアップ時間ピッカーの表示（設定リストから動的生成）
         function openTimePickerSheet() {
-            const grid = document.getElementById('grid-30m-times');
+            const grid = document.getElementById('grid-quick-times');
             grid.innerHTML = '';
-            const curVal = document.getElementById('inp-time').value || roundToHalfHour(new Date());
+            const curVal = document.getElementById('inp-time').value || '12:00';
 
-            for (let h = 0; h < 24; h++) {
-                for (let m = 0; m < 60; m += 30) {
-                    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                    const isCur = (timeStr === curVal);
-                    const btn = document.createElement('div');
-                    btn.className = `time-grid-btn ${isCur ? 'active' : ''}`;
-                    btn.textContent = timeStr;
-                    btn.onclick = () => {
-                        selectTimeSlot(timeStr, 'custom');
-                        closeTimePickerSheet();
-                    };
-                    grid.appendChild(btn);
-                }
-            }
+            const times = (state.quickTimes && state.quickTimes.length > 0) ? state.quickTimes : DEFAULT_STATE.quickTimes;
+
+            times.forEach(item => {
+                const timeStr = item.time;
+                const isCur = (timeStr === curVal);
+                const btn = document.createElement('div');
+                btn.className = `time-grid-btn ${isCur ? 'active' : ''}`;
+                btn.textContent = timeStr;
+                btn.onclick = () => {
+                    selectTimeSlot(timeStr, 'custom');
+                    closeTimePickerSheet();
+                };
+                grid.appendChild(btn);
+            });
+
             document.getElementById('sheet-time-backdrop').classList.add('active');
             document.getElementById('sheet-time-picker').classList.add('active');
         }
@@ -1749,7 +1789,6 @@
             let isPending = false;
 
             if (isNaN(amt) || amt <= 0) {
-                // 既存の取引が未定だった場合、または金額空欄保存を許容する場合
                 if (editingTxnId) {
                     amt = 0;
                     isPending = true;
@@ -1795,7 +1834,6 @@
             closeAllModals(); 
             resetMainView(); 
 
-            // ① 日付変更時に今日へ強制ジャンプしないよう、変更した日付を表示してカレンダーを更新
             calCurrentDate = new Date(dateVal);
             calCurrentDate.setHours(0,0,0,0);
             
@@ -1829,7 +1867,6 @@
         function jumpToDate(dateStr) { if(!dateStr) return; calCurrentDate = new Date(dateStr); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
 
         /* ==================== 履歴 検索・フィルター・並び替え ==================== */
-
         function onCalSearchInput(val) {
             calSearchQuery = val.trim().toLowerCase();
             const btnClear = document.getElementById('btn-clear-search');
@@ -2100,7 +2137,6 @@
                     const dateSubLabel = (calTab === 'yearly' || calSortType.startsWith('amt')) ? `${dt.getMonth()+1}/${dt.getDate()}` : dt.getDate();
                     const timeStr = t.time || formatTimeFromTs(t.ts);
 
-                    // ④ 金額未定の場合は「未定」と表示
                     const amountDisplay = isPending ? '<span class="text-[#FF3B30] font-bold text-[17px]">未定</span>' : `¥${t.amount.toLocaleString()}`;
 
                     div.innerHTML = `
@@ -2167,7 +2203,6 @@
             document.getElementById('modal-stats-detail').classList.add('active');
         };
 
-        // ③ 固定費一覧レンダリング
         function renderFixedExpenses() {
             const list = document.getElementById('list-fixed-expenses'); list.innerHTML = '';
             if (!state.fixedExpenses || state.fixedExpenses.length === 0) { list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium text-[14px]">登録された固定費はありません</div>`; return; }
@@ -2183,7 +2218,6 @@
             list.appendChild(containerDiv);
         }
 
-        // ③④ 固定費エディター
         window.openFixedEditor = (id = null) => {
             editingFixedId = id; 
             document.getElementById('title-fixed-editor').textContent = id ? '固定費の編集' : '新しい固定費'; 
@@ -2306,7 +2340,7 @@
             });
         };
 
-        /* ==================== 時間帯設定（追加・編集・削除） ==================== */
+        /* ==================== 時間帯設定（朝・昼・夜） ==================== */
         window.openTimeSlotModal = (id = null) => {
             editingTimeSlotId = id;
             document.getElementById('title-timeslot-editor').textContent = id ? '時間帯の編集' : '新しい時間帯';
@@ -2331,7 +2365,7 @@
         window.saveTimeSlotEditor = () => {
             const name = document.getElementById('ed-ts-name').value.trim();
             const time = document.getElementById('ed-ts-time').value;
-            if (!name) { showAlert("時間帯の名称を入力してください (例: 朝、昼、夜、深夜)"); return; }
+            if (!name) { showAlert("時間帯の名称を入力してください (例: 朝、昼、夜)"); return; }
             if (!time) { showAlert("時刻を指定してください"); return; }
 
             const newSlot = { id: editingTimeSlotId || generateId(), name, time };
@@ -2363,6 +2397,55 @@
             });
         };
 
+        /* ==================== クイック時間ピッカー設定 ==================== */
+        window.openQuickTimeModal = (id = null) => {
+            editingQuickTimeId = id;
+            document.getElementById('title-quicktime-editor').textContent = id ? '時刻の編集' : '時刻の追加';
+            const delBox = document.getElementById('box-delete-quicktime');
+
+            if (id && typeof id === 'string') {
+                delBox.classList.remove('hidden');
+                const qt = state.quickTimes.find(x => x.id === id);
+                if (qt) {
+                    document.getElementById('ed-qt-time').value = qt.time;
+                }
+            } else {
+                editingQuickTimeId = null;
+                delBox.classList.add('hidden');
+                document.getElementById('ed-qt-time').value = "12:00";
+            }
+            document.getElementById('modal-quicktime-editor').classList.add('active');
+        };
+
+        window.saveQuickTimeEditor = () => {
+            const time = document.getElementById('ed-qt-time').value;
+            if (!time) { showAlert("時刻を指定してください"); return; }
+
+            const newQT = { id: editingQuickTimeId || generateId(), time };
+            if (editingQuickTimeId) {
+                const idx = state.quickTimes.findIndex(x => x.id === editingQuickTimeId);
+                if (idx > -1) state.quickTimes[idx] = newQT;
+            } else {
+                state.quickTimes.push(newQT);
+            }
+            saveData();
+            closeModal('modal-quicktime-editor');
+            renderPanelLists();
+        };
+
+        window.deleteQuickTime = () => {
+            if (state.quickTimes.length <= 1) {
+                showAlert("リストには少なくとも1つの時刻が必要です。");
+                return;
+            }
+            showConfirm("この時刻をピッカー候補から削除しますか？", () => {
+                state.quickTimes = state.quickTimes.filter(t => t.id !== editingQuickTimeId);
+                saveData();
+                closeModal('modal-quicktime-editor');
+                renderPanelLists();
+            });
+        };
+
         let sortables = {};
         function buildSortableList(containerId, arrayName, formatHTML, clickActionStr) {
             const list = document.getElementById(containerId); list.innerHTML = '';
@@ -2372,7 +2455,21 @@
                 list.appendChild(div);
             });
             if(sortables[containerId]) sortables[containerId].destroy();
-            sortables[containerId] = new Sortable(list, { handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50', onEnd: function (evt) { const item = state[arrayName].splice(evt.oldIndex, 1)[0]; state[arrayName].splice(evt.newIndex, 0, item); saveData(); if(arrayName === 'shortcuts') renderShortcuts(); if(arrayName === 'timeSlots') { const curTime = document.getElementById('inp-time').value || '12:00'; renderTimePills(curTime, true); } } });
+            sortables[containerId] = new Sortable(list, { 
+                handle: '.drag-handle', 
+                animation: 150, 
+                ghostClass: 'opacity-50', 
+                onEnd: function (evt) { 
+                    const item = state[arrayName].splice(evt.oldIndex, 1)[0]; 
+                    state[arrayName].splice(evt.newIndex, 0, item); 
+                    saveData(); 
+                    if(arrayName === 'shortcuts') renderShortcuts(); 
+                    if(arrayName === 'timeSlots') { 
+                        const curTime = document.getElementById('inp-time').value || '12:00'; 
+                        renderTimePills(curTime, true); 
+                    } 
+                } 
+            });
         }
 
         function renderGroupedShopsList() {
@@ -2397,7 +2494,17 @@
             });
         }
 
-        window.deleteItem = (arrayName, id) => showConfirm("削除しますか？", () => { state[arrayName] = state[arrayName].filter(i=>i.id!==id); saveData(); renderPanelLists(); if(arrayName === 'shortcuts') renderShortcuts(); if(arrayName === 'timeSlots') { const curTime = document.getElementById('inp-time').value || '12:00'; renderTimePills(curTime, true); } });
+        window.deleteItem = (arrayName, id) => showConfirm("削除しますか？", () => { 
+            state[arrayName] = state[arrayName].filter(i=>i.id!==id); 
+            saveData(); 
+            renderPanelLists(); 
+            if(arrayName === 'shortcuts') renderShortcuts(); 
+            if(arrayName === 'timeSlots') { 
+                const curTime = document.getElementById('inp-time').value || '12:00'; 
+                renderTimePills(curTime, true); 
+            } 
+        });
+
         window.renameItem = (arrayName, id) => {
             const item = state[arrayName].find(i=>i.id===id); if(!item) return; showPrompt(arrayName === 'shopClasses' ? "分類とアイコン (例: 🍽️外食)" : "新しい名前", arrayName === 'shopClasses' ? (item.icon + ' ' + item.name) : item.name, val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } item.icon = icon; item.name = name; } else { item.name = val.trim(); } saveData(); renderPanelLists(); } });
         };
@@ -2405,6 +2512,7 @@
 
         function renderPanelLists() {
             buildSortableList('list-set-time-slots', 'timeSlots', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900">${escapeHTML(i.name)}</span><span class="text-[#007AFF] font-bold text-[15px]">${i.time}</span></div>`, `openTimeSlotModal('{id}')`);
+            buildSortableList('list-set-quick-times', 'quickTimes', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900 tracking-wide">${i.time}</span><span class="text-xs text-gray-400">タップで変更</span></div>`, `openQuickTimeModal('{id}')`);
             buildSortableList('list-set-payments', 'paymentMethods', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, `renameItem('paymentMethods', '{id}')`);
             buildSortableList('list-set-categories', 'categories', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, `renameItem('categories', '{id}')`);
             buildSortableList('list-set-classes', 'shopClasses', i => `<span class="font-medium truncate text-[17px] text-gray-900"><span class="text-xl mr-2">${escapeHTML(i.icon)}</span>${escapeHTML(i.name)}</span>`, `renameItem('shopClasses', '{id}')`);
@@ -2484,8 +2592,8 @@
             }
         }
 
-        const SYNCED_COLLECTIONS = ['transactions', 'timeSlots', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
-        const ORDERED_COLLECTIONS = new Set(['timeSlots', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses']);
+        const SYNCED_COLLECTIONS = ['transactions', 'timeSlots', 'quickTimes', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
+        const ORDERED_COLLECTIONS = new Set(['timeSlots', 'quickTimes', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses']);
 
         function withOrder(arr, name) {
             if (!ORDERED_COLLECTIONS.has(name)) return arr;
