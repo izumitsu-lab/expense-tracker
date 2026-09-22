@@ -850,6 +850,13 @@
                         <select id="inp-payment" class="ios-input appearance-none text-[#007AFF] font-medium bg-transparent" dir="rtl"></select>
                     </div>
                     <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">費目タイプ</span>
+                        <div class="flex items-center gap-2 flex-grow justify-end">
+                            <button type="button" onclick="setDetailIsFixed(false)" id="btn-detail-variable" class="px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors">変動費</button>
+                            <button type="button" onclick="setDetailIsFixed(true)" id="btn-detail-fixed" class="px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors">固定費</button>
+                        </div>
+                    </div>
+                    <div class="ios-item">
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">メモ</span>
                         <input type="text" id="inp-memo" class="ios-input font-medium" placeholder="追加情報...">
                     </div>
@@ -976,6 +983,13 @@
                         <div class="flex items-center flex-grow justify-end">
                             <input type="number" id="fx-day" min="1" max="31" class="ios-input text-[#007AFF] font-bold text-right p-0 h-8 w-12" value="1">
                             <span class="ml-1 text-gray-500 font-bold text-[17px]">日</span>
+                        </div>
+                    </div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">費目タイプ</span>
+                        <div class="flex items-center gap-2 flex-grow justify-end">
+                            <button type="button" onclick="setFixedEditorIsFixed(false)" id="btn-fx-variable" class="px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors">変動費</button>
+                            <button type="button" onclick="setFixedEditorIsFixed(true)" id="btn-fx-fixed" class="px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors">固定費</button>
                         </div>
                     </div>
                 </div>
@@ -1200,6 +1214,8 @@
         let currentAmount = "0";
         let activeClassId = null;
         let editingTxnId = null;
+        let currentDetailIsFixed = false;
+        let currentFixedEditorIsFixed = true;
         let editingShopId = null;
         let editingShortcutId = null;
         let editingFixedId = null;
@@ -1320,8 +1336,9 @@
                                 classId: fe.classId, 
                                 categoryId: fe.categoryId, 
                                 shopName: fe.shopName, 
-                                paymentId: fe.paymentId, 
-                                memo: fe.memo || (isPending ? '固定費 (金額未定)' : '固定費'), 
+                                paymentId: fe.paymentId,
+                                memo: fe.memo || (isPending ? '固定費 (金額未定)' : '固定費'),
+                                isFixed: fe.isFixed === false ? false : true,
                                 ts: new Date(`${dateStr}T09:00:00`).getTime() || Date.now()
                             });
                             addedCount++;
@@ -1819,6 +1836,15 @@
             document.getElementById('sheet-time-picker').classList.remove('active');
         }
 
+        function setDetailIsFixed(val) {
+            currentDetailIsFixed = val;
+            const btnVar = document.getElementById('btn-detail-variable');
+            const btnFix = document.getElementById('btn-detail-fixed');
+            btnVar.className = `px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${!val ? 'bg-[#007AFF] text-white' : 'bg-gray-100 text-gray-400'}`;
+            btnFix.className = `px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${val ? 'bg-[#007AFF] text-white' : 'bg-gray-100 text-gray-400'}`;
+        }
+        window.setDetailIsFixed = setDetailIsFixed;
+
         function openDetailModal(shopObj = null, txnToEdit = null, shortcutObj = null) {
             closeModal('modal-shops'); closeModal('modal-class-select'); editingTxnId = txnToEdit ? txnToEdit.id : null; const title = document.getElementById('title-detail'); const delBox = document.getElementById('box-delete'); 
             
@@ -1846,6 +1872,7 @@
 
                 document.getElementById('inp-class').value = txnToEdit.classId; updateShopSelect('inp-class', 'inp-shop', txnToEdit.shopName);
                 document.getElementById('inp-cat').value = txnToEdit.categoryId; document.getElementById('inp-payment').value = txnToEdit.paymentId; document.getElementById('inp-memo').value = txnToEdit.memo;
+                setDetailIsFixed(Boolean(txnToEdit.isFixed || String(txnToEdit.id).startsWith('fx_')));
             } else if (shortcutObj) {
                 title.textContent = shortcutObj.name; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('inp-amount').value = shortcutObj.amount || (currentAmount === "0" ? "" : currentAmount); 
@@ -1855,6 +1882,7 @@
                 renderTimePills(initTime, true);
                 document.getElementById('inp-class').value = shortcutObj.classId; updateShopSelect('inp-class', 'inp-shop', shortcutObj.shopName);
                 document.getElementById('inp-cat').value = shortcutObj.categoryId; document.getElementById('inp-payment').value = shortcutObj.paymentId; document.getElementById('inp-memo').value = shortcutObj.memo;
+                setDetailIsFixed(false);
             } else {
                 title.textContent = '詳細確認'; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('inp-amount').value = currentAmount === "0" ? "" : currentAmount; 
@@ -1869,6 +1897,7 @@
                     document.getElementById('inp-class').value = activeClassId; updateShopSelect('inp-class', 'inp-shop', '');
                     document.getElementById('inp-memo').value = "";
                 }
+                setDetailIsFixed(false);
             }
             document.getElementById('modal-detail').classList.add('active');
         }
@@ -1911,10 +1940,11 @@
                 time: isTimeUnset ? '' : timeVal,
                 timeUnset: isTimeUnset,
                 classId: document.getElementById('inp-class').value,
-                categoryId: document.getElementById('inp-cat').value, 
-                shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, 
-                paymentId: document.getElementById('inp-payment').value, 
-                memo: document.getElementById('inp-memo').value.trim(), 
+                categoryId: document.getElementById('inp-cat').value,
+                shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal,
+                paymentId: document.getElementById('inp-payment').value,
+                memo: document.getElementById('inp-memo').value.trim(),
+                isFixed: currentDetailIsFixed,
                 ts: calculatedTs
             };
             if (editingTxnId) { 
@@ -2629,7 +2659,7 @@
             let fixedTotal = 0, variableTotal = 0;
             state.transactions.forEach(t => {
                 if (t.date >= monthStartStr && t.date <= todayStr) {
-                    if (String(t.id).startsWith('fx_')) fixedTotal += t.amount; else variableTotal += t.amount;
+                    if (t.isFixed || String(t.id).startsWith('fx_')) fixedTotal += t.amount; else variableTotal += t.amount;
                 }
             });
             const grandTotal = fixedTotal + variableTotal;
@@ -3096,25 +3126,35 @@
                     const isPending = Boolean(s.isPending || s.amount === 0);
                     document.getElementById('fx-is-pending').checked = isPending;
                     toggleFixedPending(isPending);
-                    document.getElementById('fx-amount').value = isPending ? "" : s.amount; 
-                    document.getElementById('fx-day').value = s.day; 
-                    document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', s.shopName); 
-                    document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || ''; 
+                    document.getElementById('fx-amount').value = isPending ? "" : s.amount;
+                    document.getElementById('fx-day').value = s.day;
+                    document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', s.shopName);
+                    document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || '';
+                    setFixedEditorIsFixed(s.isFixed === false ? false : true);
                 }
             } else {
                 editingFixedId = null; delBox.classList.add('hidden'); delBox.classList.remove('block');
-                document.getElementById('fx-name').value = ""; 
+                document.getElementById('fx-name').value = "";
                 document.getElementById('fx-is-pending').checked = false;
                 toggleFixedPending(false);
-                document.getElementById('fx-amount').value = ""; 
-                document.getElementById('fx-day').value = "1"; 
+                document.getElementById('fx-amount').value = "";
+                document.getElementById('fx-day').value = "1";
                 document.getElementById('fx-memo').value = "";
+                setFixedEditorIsFixed(true);
                 if(state.shopClasses.length > 0) document.getElementById('fx-class').value = state.shopClasses[0].id; 
                 if(state.categories.length > 0) document.getElementById('fx-cat').value = state.categories[0].id; 
                 if(state.paymentMethods.length > 0) document.getElementById('fx-pay').value = state.paymentMethods[0].id;
                 updateShopSelect('fx-class','fx-shop', '');
             }
             document.getElementById('modal-fixed-editor').classList.add('active');
+        };
+
+        window.setFixedEditorIsFixed = (val) => {
+            currentFixedEditorIsFixed = val;
+            const btnVar = document.getElementById('btn-fx-variable');
+            const btnFix = document.getElementById('btn-fx-fixed');
+            btnVar.className = `px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${!val ? 'bg-[#007AFF] text-white' : 'bg-gray-100 text-gray-400'}`;
+            btnFix.className = `px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${val ? 'bg-[#007AFF] text-white' : 'bg-gray-100 text-gray-400'}`;
         };
 
         window.toggleFixedPending = (isPending) => {
@@ -3149,14 +3189,15 @@
             const newFE = { 
                 id: editingFixedId || generateId(), 
                 name: name, 
-                amount: amt, 
+                amount: amt,
                 isPending: isPending,
-                day: day, 
-                classId: document.getElementById('fx-class').value, 
-                categoryId: document.getElementById('fx-cat').value, 
-                shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, 
-                paymentId: document.getElementById('fx-pay').value, 
-                memo: document.getElementById('fx-memo').value.trim() 
+                day: day,
+                classId: document.getElementById('fx-class').value,
+                categoryId: document.getElementById('fx-cat').value,
+                shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal,
+                paymentId: document.getElementById('fx-pay').value,
+                memo: document.getElementById('fx-memo').value.trim(),
+                isFixed: currentFixedEditorIsFixed
             };
             if (editingFixedId) { 
                 const idx = state.fixedExpenses.findIndex(x => x.id === editingFixedId); 
@@ -3195,9 +3236,10 @@
                     classId: classId, 
                     categoryId: catId, 
                     shopName: shopName === 'ADD_NEW' ? '' : shopName, 
-                    paymentId: paymentId, 
-                    memo: memo || (isPending ? '固定費 (金額未定)' : '固定費'), 
-                    ts: new Date(`${selectedDate}T09:00:00`).getTime() || Date.now() 
+                    paymentId: paymentId,
+                    memo: memo || (isPending ? '固定費 (金額未定)' : '固定費'),
+                    isFixed: currentFixedEditorIsFixed,
+                    ts: new Date(`${selectedDate}T09:00:00`).getTime() || Date.now()
                 });
                 saveData(); showAlert(`${selectedDate} に追加しました`); closeModal('modal-fixed-editor'); renderFixedExpenses();
             });
