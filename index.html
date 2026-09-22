@@ -437,16 +437,17 @@
             <div class="px-5 pb-2 pt-6 flex-shrink-0">
                 <h1 class="text-[34px] font-bold mb-4 tracking-tight">分析</h1>
                 
-                <!-- 3タブ セグメント (Monthly, Yearly, Shop) -->
+                <!-- 4タブ セグメント (Trend, Monthly, Yearly, Shop) -->
                 <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-4 w-full relative">
-                    <div id="stats-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow transition-transform duration-200 ease-out w-[calc(33.333%-2px)] left-[2px]"></div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('monthly', 0)">Monthly</div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('yearly', 1)">Yearly</div>
-                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('shop', 2)">Shop</div>
+                    <div id="stats-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow transition-transform duration-200 ease-out w-[calc(25%-2px)] left-[2px]"></div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('trend', 0)">Trend</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('monthly', 1)">Monthly</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('yearly', 2)">Yearly</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('shop', 3)">Shop</div>
                 </div>
 
                 <!-- Monthly / Yearly 用ヘッダー -->
-                <div id="stats-period-header" class="block">
+                <div id="stats-period-header" class="hidden">
                     <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
                         <div class="flex justify-between items-center mb-3">
                             <button onclick="shiftStatsDate(-1)" class="p-1.5 -ml-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
@@ -1074,6 +1075,11 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // Dateオブジェクトを "YYYY-MM-DD" 文字列に変換（t.date と同じ形式）
+        function toDateStr(d) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
         // ==================== 時刻ユーティリティ ====================
         function formatExactTime(date = new Date()) {
             return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -1209,7 +1215,8 @@
         let calSortType = 'date_desc';
         let currentSheetType = null;
 
-        let statsTab = 'monthly';
+        let statsTab = 'trend';
+        let trendChartMode = 'week';
         let statsCurrentDate = new Date(); statsCurrentDate.setHours(0,0,0,0);
         let statsSelectedShopName = '';
         
@@ -2301,11 +2308,14 @@
                     statsSelectedShopName = topShops[0] || (state.shops[0] ? state.shops[0].name : '');
                 }
                 updateStatsShopHeaderUI();
+            } else if (tab === 'trend') {
+                periodHeader.classList.add('hidden');
+                shopHeader.classList.add('hidden');
             } else {
                 periodHeader.classList.remove('hidden');
                 shopHeader.classList.add('hidden');
             }
-            renderStats(); 
+            renderStats();
         }
 
         function shiftStatsDate(offset) { 
@@ -2424,9 +2434,333 @@
             });
         }
 
+        function setTrendChartMode(mode) {
+            trendChartMode = mode;
+            renderStats();
+        }
+
+        function renderTrendTab(container) {
+            if (!state.transactions || state.transactions.length === 0) {
+                container.innerHTML = `
+                    <div class="py-16 text-center text-gray-400 font-medium flex flex-col items-center">
+                        <span class="text-4xl mb-3">📊</span>
+                        <span>データがまだありません</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const todayStr = toDateStr(today);
+
+            // 家計簿全体の初回入力日（比較期間がデータの無い過去にはみ出さないための下限）
+            const allDatesSorted = state.transactions.map(t => t.date).filter(Boolean).sort();
+            const firstEverDate = allDatesSorted.length > 0 ? new Date(allDatesSorted[0]) : null;
+            if (firstEverDate) firstEverDate.setHours(0, 0, 0, 0);
+
+            // 指定期間 [start, end]（両端含む）の支出合計
+            function sumInRange(start, end) {
+                const s = toDateStr(start), e = toDateStr(end);
+                let sum = 0;
+                state.transactions.forEach(t => { if (t.date >= s && t.date <= e) sum += t.amount; });
+                return sum;
+            }
+
+            // 期間の1日あたり平均を算出。データの無い過去にはみ出す分は firstEverDate でクランプする。
+            // 有効な期間が無い場合は null。
+            function periodPerDay(start, end) {
+                let s = new Date(start);
+                const e = new Date(end);
+                if (firstEverDate && firstEverDate > s) s = new Date(firstEverDate);
+                if (s > e) return null;
+                const days = Math.round((e - s) / 86400000) + 1;
+                const total = sumInRange(s, e);
+                return { total, days, perDay: total / days };
+            }
+
+            function deltaBadge(current, baseline, captionText) {
+                if (!current || !baseline || baseline.perDay <= 0) {
+                    return `<div class="text-[11px] font-semibold text-gray-400 mt-1">比較データ不足</div>`;
+                }
+                const diffPct = Math.round(((current.perDay - baseline.perDay) / baseline.perDay) * 100);
+                const isFlat = diffPct === 0;
+                const isUp = diffPct > 0;
+                const color = isFlat ? 'text-gray-400' : (isUp ? 'text-[#FF3B30]' : 'text-[#34C759]');
+                const arrow = isFlat ? '→' : (isUp ? '↑' : '↓');
+                const captionHtml = captionText ? `<span class="text-[10px] font-semibold text-gray-400">${captionText}</span>` : '';
+                return `<div class="flex items-baseline gap-1 mt-1"><span class="text-[15px] font-extrabold ${color}">${arrow} ${Math.abs(diffPct)}%</span>${captionHtml}</div>`;
+            }
+
+            // ---------- ① 今週 / 今月の1日あたり vs 過去平均 ----------
+            const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+            const thisWeek = periodPerDay(weekStart, today);
+
+            const prevWeeksEnd = new Date(weekStart); prevWeeksEnd.setDate(weekStart.getDate() - 1);
+            const prevWeeksStart = new Date(weekStart); prevWeeksStart.setDate(weekStart.getDate() - 7 * 8);
+            const prevWeeksBaseline = periodPerDay(prevWeeksStart, prevWeeksEnd);
+
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const monthStartStr = toDateStr(monthStart);
+            const thisMonth = periodPerDay(monthStart, today);
+
+            const prevMonthsEnd = new Date(monthStart); prevMonthsEnd.setDate(monthStart.getDate() - 1);
+            const prevMonthsStart = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+            const prevMonthsBaseline = periodPerDay(prevMonthsStart, prevMonthsEnd);
+
+            // ---------- ② 今月の着地予測 ----------
+            const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            const daysElapsedThisMonth = Math.round((today - monthStart) / 86400000) + 1;
+            const progressPct = Math.min(100, Math.round((daysElapsedThisMonth / daysInMonth) * 100));
+            const projectedTotal = thisMonth ? Math.round(thisMonth.perDay * daysInMonth) : 0;
+
+            // ---------- ③ 前月比・前年同月比（1日あたり） ----------
+            const lastMonthEnd = new Date(monthStart); lastMonthEnd.setDate(monthStart.getDate() - 1);
+            const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1);
+            const lastMonthStats = periodPerDay(lastMonthStart, lastMonthEnd);
+
+            const lastYearMonthStart = new Date(today.getFullYear() - 1, today.getMonth(), 1);
+            const lastYearMonthEnd = new Date(today.getFullYear() - 1, today.getMonth() + 1, 0);
+            const lastYearMonthStats = periodPerDay(lastYearMonthStart, lastYearMonthEnd);
+
+            // ---------- ④ 推移グラフ（週次 / 月次） ----------
+            let trendBarsHtml = '';
+            if (trendChartMode === 'week') {
+                const weeks = [];
+                for (let i = 7; i >= 0; i--) {
+                    const wStart = new Date(weekStart); wStart.setDate(weekStart.getDate() - 7 * i);
+                    const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate() + 6);
+                    const cappedEnd = wEnd > today ? today : wEnd;
+                    const total = sumInRange(wStart, cappedEnd);
+                    weeks.push({ label: `${wStart.getMonth() + 1}/${wStart.getDate()}`, total, isCurrent: i === 0 });
+                }
+                const maxVal = Math.max(...weeks.map(w => w.total), 1);
+                weeks.forEach(w => {
+                    const pct = Math.max((w.total / maxVal) * 100, w.total > 0 ? 4 : 1);
+                    const barColor = w.isCurrent ? 'bg-[#007AFF]' : 'bg-[rgba(142,142,147,0.3)]';
+                    trendBarsHtml += `
+                        <div class="flex-1 flex flex-col items-center gap-1.5">
+                            <div class="w-full bg-[rgba(60,60,67,0.06)] rounded-full h-24 flex flex-col justify-end p-0.5 overflow-hidden">
+                                <div class="${barColor} w-full rounded-full transition-all duration-300" style="height: ${pct}%;"></div>
+                            </div>
+                            <div class="text-[9px] font-bold text-gray-400">${w.label}</div>
+                        </div>
+                    `;
+                });
+            } else {
+                const months = [];
+                for (let i = 11; i >= 0; i--) {
+                    const mStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                    const mEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+                    const cappedEnd = mEnd > today ? today : mEnd;
+                    const total = sumInRange(mStart, cappedEnd);
+                    months.push({ label: `${mStart.getMonth() + 1}月`, total, isCurrent: i === 0 });
+                }
+                const maxVal = Math.max(...months.map(m => m.total), 1);
+                months.forEach(m => {
+                    const pct = Math.max((m.total / maxVal) * 100, m.total > 0 ? 4 : 1);
+                    const barColor = m.isCurrent ? 'bg-[#007AFF]' : 'bg-[rgba(142,142,147,0.3)]';
+                    trendBarsHtml += `
+                        <div class="flex-1 flex flex-col items-center gap-1.5">
+                            <div class="w-full bg-[rgba(60,60,67,0.06)] rounded-full h-24 flex flex-col justify-end p-0.5 overflow-hidden">
+                                <div class="${barColor} w-full rounded-full transition-all duration-300" style="height: ${pct}%;"></div>
+                            </div>
+                            <div class="text-[9px] font-bold text-gray-400">${m.label}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // ---------- ⑤ カテゴリー別増減ランキング（対 直近数ヶ月平均） ----------
+            const categoryCurrentTotal = {};
+            const categoryBaselineTotal = {};
+            let baselineStartForCat = prevMonthsStart;
+            if (firstEverDate && firstEverDate > baselineStartForCat) baselineStartForCat = new Date(firstEverDate);
+            const baselineStartForCatStr = toDateStr(baselineStartForCat);
+            const prevMonthsEndStr = toDateStr(prevMonthsEnd);
+            const baselineDaysForCat = Math.max(1, Math.round((prevMonthsEnd - baselineStartForCat) / 86400000) + 1);
+            const baselineMonthsCountForCat = baselineDaysForCat / 30.4;
+            const hasBaselineRange = baselineStartForCat <= prevMonthsEnd;
+
+            state.transactions.forEach(t => {
+                if (t.date >= monthStartStr && t.date <= todayStr) {
+                    categoryCurrentTotal[t.categoryId] = (categoryCurrentTotal[t.categoryId] || 0) + t.amount;
+                }
+                if (hasBaselineRange && t.date >= baselineStartForCatStr && t.date <= prevMonthsEndStr) {
+                    categoryBaselineTotal[t.categoryId] = (categoryBaselineTotal[t.categoryId] || 0) + t.amount;
+                }
+            });
+
+            const catIds = new Set([...Object.keys(categoryCurrentTotal), ...Object.keys(categoryBaselineTotal)]);
+            const catChanges = [];
+            catIds.forEach(catId => {
+                const currentTotal = categoryCurrentTotal[catId] || 0;
+                const baselineTotal = categoryBaselineTotal[catId] || 0;
+                const projectedCurrent = daysElapsedThisMonth > 0 ? (currentTotal / daysElapsedThisMonth) * daysInMonth : 0;
+                const baselineMonthlyAvg = baselineTotal / baselineMonthsCountForCat;
+                const diffAmount = projectedCurrent - baselineMonthlyAvg;
+                if (Math.abs(diffAmount) < 1) return;
+                const pct = baselineMonthlyAvg > 0 ? Math.round((diffAmount / baselineMonthlyAvg) * 100) : null;
+                const catObj = state.categories.find(c => c.id === catId);
+                catChanges.push({ name: catObj ? catObj.name : '未分類', diffAmount, pct });
+            });
+            catChanges.sort((a, b) => Math.abs(b.diffAmount) - Math.abs(a.diffAmount));
+            const topCatChanges = catChanges.slice(0, 3);
+
+            // ---------- ⑥ 平日・週末比較（直近30日・1日あたり） ----------
+            let last30Start = new Date(today); last30Start.setDate(today.getDate() - 29);
+            if (firstEverDate && firstEverDate > last30Start) last30Start = new Date(firstEverDate);
+            const last30StartStr = toDateStr(last30Start);
+            let weekdaySum = 0, weekdayDays = 0, weekendSum = 0, weekendDays = 0;
+            for (let d = new Date(last30Start); d <= today; d.setDate(d.getDate() + 1)) {
+                const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
+                if (isWeekend) weekendDays++; else weekdayDays++;
+            }
+            state.transactions.forEach(t => {
+                if (t.date >= last30StartStr && t.date <= todayStr) {
+                    const dow = new Date(t.date).getDay();
+                    if (dow === 0 || dow === 6) weekendSum += t.amount; else weekdaySum += t.amount;
+                }
+            });
+            const weekdayPerDay = weekdayDays > 0 ? Math.round(weekdaySum / weekdayDays) : 0;
+            const weekendPerDay = weekendDays > 0 ? Math.round(weekendSum / weekendDays) : 0;
+            const maxWD = Math.max(weekdayPerDay, weekendPerDay, 1);
+
+            // ---------- ⑦ 固定費 vs 変動費（今月） ----------
+            let fixedTotal = 0, variableTotal = 0;
+            state.transactions.forEach(t => {
+                if (t.date >= monthStartStr && t.date <= todayStr) {
+                    if (String(t.id).startsWith('fx_')) fixedTotal += t.amount; else variableTotal += t.amount;
+                }
+            });
+            const grandTotal = fixedTotal + variableTotal;
+            const fixedPct = grandTotal > 0 ? Math.round((fixedTotal / grandTotal) * 100) : 0;
+
+            // ---------- HTML組み立て ----------
+            const catRankingHtml = topCatChanges.length === 0
+                ? `<div class="text-[12px] text-gray-400 py-2">比較できるデータがまだありません</div>`
+                : topCatChanges.map(c => {
+                    const isUp = c.diffAmount > 0;
+                    const color = isUp ? 'text-[#FF3B30]' : 'text-[#34C759]';
+                    const arrow = isUp ? '↑' : '↓';
+                    const pctText = c.pct === null ? '新規' : `${Math.abs(c.pct)}%`;
+                    return `
+                        <div class="flex justify-between items-center py-2 border-b border-[rgba(60,60,67,0.06)] last:border-b-0">
+                            <span class="text-[13px] font-semibold text-gray-800 truncate w-1/2">${escapeHTML(c.name)}</span>
+                            <span class="text-[13px] font-bold ${color} shrink-0">${arrow} ¥${Math.abs(Math.round(c.diffAmount)).toLocaleString()} <span class="text-[11px] text-gray-400 font-semibold">(${pctText})</span></span>
+                        </div>
+                    `;
+                }).join('');
+
+            container.innerHTML = `
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                        <span class="text-[11px] font-semibold text-gray-400">今週の1日あたり</span>
+                        <div class="text-[24px] font-black text-gray-900 tracking-tight leading-none mt-1.5">¥${Math.round(thisWeek ? thisWeek.perDay : 0).toLocaleString()}</div>
+                        ${deltaBadge(thisWeek, prevWeeksBaseline, '対過去平均')}
+                    </div>
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                        <span class="text-[11px] font-semibold text-gray-400">今月の1日あたり</span>
+                        <div class="text-[24px] font-black text-gray-900 tracking-tight leading-none mt-1.5">¥${Math.round(thisMonth ? thisMonth.perDay : 0).toLocaleString()}</div>
+                        ${deltaBadge(thisMonth, prevMonthsBaseline, '対過去平均')}
+                    </div>
+                </div>
+
+                <!-- 今月の着地予測 -->
+                <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[13px] font-bold text-gray-900">今月の着地予測</span>
+                        <span class="text-[11px] font-semibold text-gray-400">${daysElapsedThisMonth}/${daysInMonth}日経過</span>
+                    </div>
+                    <div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-2.5 mb-3 overflow-hidden">
+                        <div class="bg-[#007AFF] h-full rounded-full transition-all duration-300" style="width: ${progressPct}%;"></div>
+                    </div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="text-[26px] font-black text-gray-900 tracking-tight leading-none">¥${projectedTotal.toLocaleString()}</span>
+                        <span class="text-[11px] font-semibold text-gray-400">予測（現在 ¥${(thisMonth ? thisMonth.total : 0).toLocaleString()}）</span>
+                    </div>
+                </div>
+
+                <!-- 前月比・前年同月比 -->
+                <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                    <span class="text-[13px] font-bold text-gray-900 mb-3 block">先月・去年との比較（1日あたり）</span>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-[#F2F2F7] rounded-xl p-3">
+                            <div class="text-[11px] font-semibold text-gray-500">先月比</div>
+                            ${deltaBadge(thisMonth, lastMonthStats, null)}
+                        </div>
+                        <div class="bg-[#F2F2F7] rounded-xl p-3">
+                            <div class="text-[11px] font-semibold text-gray-500">前年同月比</div>
+                            ${deltaBadge(thisMonth, lastYearMonthStats, null)}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 推移グラフ -->
+                <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-[13px] font-bold text-gray-900">支出の推移</span>
+                        <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[7px] p-[2px]">
+                            <button onclick="setTrendChartMode('week')" class="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] transition-colors ${trendChartMode === 'week' ? 'bg-white text-black shadow' : 'text-gray-500'}">週</button>
+                            <button onclick="setTrendChartMode('month')" class="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] transition-colors ${trendChartMode === 'month' ? 'bg-white text-black shadow' : 'text-gray-500'}">月</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-end gap-1 px-0.5">${trendBarsHtml}</div>
+                </div>
+
+                <!-- カテゴリー別増減ランキング -->
+                <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                    <span class="text-[13px] font-bold text-gray-900 mb-2 block">カテゴリー別の変化（対 直近平均）</span>
+                    ${catRankingHtml}
+                </div>
+
+                <!-- 平日・週末比較 -->
+                <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                    <span class="text-[13px] font-bold text-gray-900 mb-3 block">平日 と 週末（直近30日・1日あたり）</span>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col items-center">
+                            <div class="w-full bg-[rgba(60,60,67,0.06)] rounded-full h-20 flex flex-col justify-end p-0.5 overflow-hidden mb-2">
+                                <div class="bg-[rgba(142,142,147,0.4)] w-full rounded-full transition-all duration-300" style="height: ${Math.max((weekdayPerDay / maxWD) * 100, weekdayPerDay > 0 ? 4 : 1)}%;"></div>
+                            </div>
+                            <span class="text-[11px] font-semibold text-gray-500">平日</span>
+                            <span class="text-[15px] font-extrabold text-gray-900">¥${weekdayPerDay.toLocaleString()}</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-full bg-[rgba(60,60,67,0.06)] rounded-full h-20 flex flex-col justify-end p-0.5 overflow-hidden mb-2">
+                                <div class="bg-[#007AFF] w-full rounded-full transition-all duration-300" style="height: ${Math.max((weekendPerDay / maxWD) * 100, weekendPerDay > 0 ? 4 : 1)}%;"></div>
+                            </div>
+                            <span class="text-[11px] font-semibold text-gray-500">週末</span>
+                            <span class="text-[15px] font-extrabold text-gray-900">¥${weekendPerDay.toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 固定費 vs 変動費 -->
+                <div class="bg-white rounded-2xl p-4 mb-6 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-[13px] font-bold text-gray-900">今月の固定費比率</span>
+                        <span class="text-[13px] font-extrabold text-gray-900">${fixedPct}%</span>
+                    </div>
+                    <div class="w-full flex h-3 rounded-full overflow-hidden bg-[rgba(60,60,67,0.08)]">
+                        <div class="bg-[#007AFF]" style="width: ${fixedPct}%;"></div>
+                        <div class="bg-[rgba(142,142,147,0.4)]" style="width: ${100 - fixedPct}%;"></div>
+                    </div>
+                    <div class="flex justify-between mt-2 text-[11px] font-semibold text-gray-500">
+                        <span>固定費 ¥${fixedTotal.toLocaleString()}</span>
+                        <span>変動費 ¥${variableTotal.toLocaleString()}</span>
+                    </div>
+                </div>
+            `;
+        }
+
         function renderStats() {
             const container = document.getElementById('stats-content'); container.innerHTML = '';
-            
+
+            // ===== Trendタブのレンダリング =====
+            if (statsTab === 'trend') {
+                renderTrendTab(container);
+                return;
+            }
+
             // ===== Shopタブのレンダリング =====
             if (statsTab === 'shop') {
                 if (!statsSelectedShopName) {
