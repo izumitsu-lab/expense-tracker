@@ -508,7 +508,7 @@
                 <div class="flex items-center gap-2 mb-2.5">
                     <div class="relative flex-1 flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5 transition-colors focus-within:bg-[rgba(142,142,147,0.18)] min-w-0">
                         <svg class="w-3.5 h-3.5 text-gray-400 shrink-0 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                        <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="店名・メモ等で検索" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
+                        <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="キーワードで絞り込み" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
                         <button id="btn-clear-search" onclick="clearCalSearch()" class="hidden text-gray-400 p-0.5 hover:text-gray-600 active:opacity-70 shrink-0">
                             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
                         </button>
@@ -742,6 +742,7 @@
                 <div class="w-12"></div>
             </div>
             <div class="flex-1 overflow-y-auto no-scrollbar p-4" style="max-height: 60vh;">
+                <button onclick="unsetTime(); closeTimePickerSheet();" class="w-full py-3 mb-3 text-[#FF3B30] font-bold text-[15px] rounded-xl bg-gray-50 active:bg-gray-100">時間を未設定にする</button>
                 <div class="grid grid-cols-4 gap-2" id="grid-quick-times"></div>
             </div>
         </div>
@@ -1335,8 +1336,8 @@
         function showDatePrompt(defaultDate, cb) { document.getElementById('date-prompt-input').value = defaultDate; document.getElementById('custom-date-prompt').classList.add('active'); datePromptCallback = cb; }
         function closeDatePrompt(isOk) { document.getElementById('custom-date-prompt').classList.remove('active'); if (isOk && datePromptCallback) datePromptCallback(document.getElementById('date-prompt-input').value); }
 
-        function closeAllModals() { 
-            document.querySelectorAll('.modal-sheet').forEach(m => m.classList.remove('active')); 
+        function closeAllModals() {
+            document.querySelectorAll('.modal-sheet').forEach(m => m.classList.remove('active'));
             closeFilterSheet();
             closeTimePickerSheet();
             closeStatsShopPickerSheet();
@@ -1711,7 +1712,12 @@
             const dispLbl = document.getElementById('lbl-display-time');
             const minutePicker = document.getElementById('inp-native-minute-picker');
 
-            if (isSelected && activeTime) {
+            if (currentTimeSlotMode === 'unset') {
+                timeInp.value = '';
+                dispLbl.textContent = '時間未設定';
+                dispLbl.className = 'text-gray-400 font-bold text-[15px] tracking-tight';
+                if (minutePicker) minutePicker.value = '';
+            } else if (isSelected && activeTime) {
                 timeInp.value = activeTime;
                 dispLbl.textContent = activeTime;
                 dispLbl.className = 'text-[#007AFF] font-bold text-[18px] tracking-tight';
@@ -1721,6 +1727,12 @@
                 dispLbl.textContent = '時間を選択';
                 dispLbl.className = 'text-[#FF3B30] font-bold text-[15px] tracking-tight';
             }
+        }
+
+        // 「時間を未設定にする」共通処理（選択ボトムシート・時間クリックポップアップの両方から呼ばれる）
+        function unsetTime() {
+            currentTimeSlotMode = 'unset';
+            renderTimePills('', false);
         }
 
         function selectTimeSlot(timeVal, mode = 'preset') {
@@ -1774,7 +1786,7 @@
         function openTimePickerSheet() {
             const grid = document.getElementById('grid-quick-times');
             grid.innerHTML = '';
-            const curVal = document.getElementById('inp-time').value || '12:00';
+            const curVal = currentTimeSlotMode === 'unset' ? '' : (document.getElementById('inp-time').value || '12:00');
 
             const times = (state.quickTimes && state.quickTimes.length > 0) ? state.quickTimes : DEFAULT_STATE.quickTimes;
 
@@ -1815,11 +1827,15 @@
                 title.textContent = '編集'; delBox.classList.remove('hidden'); delBox.classList.add('block');
                 document.getElementById('inp-amount').value = (txnToEdit.isPending || txnToEdit.amount === 0) ? "" : txnToEdit.amount; 
                 document.getElementById('inp-date').value = txnToEdit.date;
-                initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : formatExactTime(now));
-                
-                const matchSlot = state.timeSlots.find(s => s.time === initTime);
-                currentTimeSlotMode = matchSlot ? 'preset' : 'custom';
-                renderTimePills(initTime, true);
+                if (txnToEdit.timeUnset) {
+                    currentTimeSlotMode = 'unset';
+                    renderTimePills('', false);
+                } else {
+                    initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : formatExactTime(now));
+                    const matchSlot = state.timeSlots.find(s => s.time === initTime);
+                    currentTimeSlotMode = matchSlot ? 'preset' : 'custom';
+                    renderTimePills(initTime, true);
+                }
 
                 document.getElementById('inp-class').value = txnToEdit.classId; updateShopSelect('inp-class', 'inp-shop', txnToEdit.shopName);
                 document.getElementById('inp-cat').value = txnToEdit.categoryId; document.getElementById('inp-payment').value = txnToEdit.paymentId; document.getElementById('inp-memo').value = txnToEdit.memo;
@@ -1869,22 +1885,25 @@
                 showAlert("日付を入力してください");
                 return;
             }
+            const isTimeUnset = (currentTimeSlotMode === 'unset');
             let timeVal = document.getElementById('inp-time').value;
-            if (!timeVal) {
+            if (!isTimeUnset && !timeVal) {
                 timeVal = formatExactTime(new Date());
             }
             const shopNameVal = document.getElementById('inp-shop').value;
-            
-            const combinedDate = new Date(`${dateVal}T${timeVal}:00`);
+
+            // 時間が未設定の場合は、その日の 0:00 を仮のタイムスタンプとして使う（並び替え・CSV上は「0:00扱い」= その日の最初として扱われる）
+            const combinedDate = isTimeUnset ? new Date(`${dateVal}T00:00:00`) : new Date(`${dateVal}T${timeVal}:00`);
             const calculatedTs = isNaN(combinedDate.getTime()) ? Date.now() : combinedDate.getTime();
 
-            const newTxn = { 
-                id: editingTxnId || generateId(), 
-                amount: amt, 
+            const newTxn = {
+                id: editingTxnId || generateId(),
+                amount: amt,
                 isPending: isPending,
-                date: dateVal, 
-                time: timeVal,
-                classId: document.getElementById('inp-class').value, 
+                date: dateVal,
+                time: isTimeUnset ? '' : timeVal,
+                timeUnset: isTimeUnset,
+                classId: document.getElementById('inp-class').value,
                 categoryId: document.getElementById('inp-cat').value, 
                 shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, 
                 paymentId: document.getElementById('inp-payment').value, 
@@ -2151,12 +2170,15 @@
                     const catName = (catObj ? catObj.name : '').toLowerCase();
                     const payObj = state.paymentMethods.find(p => p.id === t.paymentId);
                     const payName = (payObj ? payObj.name : '').toLowerCase();
+                    const classObj = state.shopClasses.find(c => c.id === t.classId);
+                    const className = (classObj ? classObj.name : '').toLowerCase();
                     const amtStr = String(t.amount);
 
-                    return shop.includes(calSearchQuery) || 
-                           memo.includes(calSearchQuery) || 
-                           catName.includes(calSearchQuery) || 
-                           payName.includes(calSearchQuery) || 
+                    return shop.includes(calSearchQuery) ||
+                           memo.includes(calSearchQuery) ||
+                           catName.includes(calSearchQuery) ||
+                           payName.includes(calSearchQuery) ||
+                           className.includes(calSearchQuery) ||
                            amtStr.includes(calSearchQuery);
                 });
             }
@@ -2205,7 +2227,7 @@
                     div.onclick = () => openDetailModal(null, t);
                     
                     const dateSubLabel = (calTab === 'yearly' || calSortType.startsWith('amt')) ? `${dt.getMonth()+1}/${dt.getDate()}` : dt.getDate();
-                    const timeStr = t.time || formatTimeFromTs(t.ts);
+                    const timeStr = t.timeUnset ? '未設定' : (t.time || formatTimeFromTs(t.ts));
 
                     const amountDisplay = isPending ? '<span class="text-[#FF3B30] font-bold text-[17px]">未定</span>' : `¥${t.amount.toLocaleString()}`;
 
@@ -2441,9 +2463,12 @@
                 const uniqueMonths = new Set();
 
                 shopTxns.forEach(t => {
-                    const timeStr = t.time || (t.ts ? formatTimeFromTs(t.ts) : '12:00');
-                    const h = parseInt(timeStr.split(':')[0], 10);
-                    if (!isNaN(h) && h >= 0 && h < 24) hourCounts[h]++;
+                    // 時間が未設定の取引は「よく使う時間帯」の集計対象から除外する
+                    if (!t.timeUnset) {
+                        const timeStr = t.time || (t.ts ? formatTimeFromTs(t.ts) : '12:00');
+                        const h = parseInt(timeStr.split(':')[0], 10);
+                        if (!isNaN(h) && h >= 0 && h < 24) hourCounts[h]++;
+                    }
 
                     if (t.date) {
                         const dObj = new Date(t.date);
@@ -2559,7 +2584,7 @@
                         <div class="flex justify-between items-center py-2.5 border-b border-[rgba(60,60,67,0.06)] last:border-b-0 text-sm">
                             <div class="flex items-center gap-2">
                                 <span class="text-xs text-gray-400 font-semibold">${t.date}</span>
-                                <span class="text-xs text-gray-500">${t.time || ''}</span>
+                                <span class="text-xs text-gray-500">${t.timeUnset ? '時間未設定' : (t.time || '')}</span>
                             </div>
                             <span class="font-bold text-gray-900">¥${t.amount.toLocaleString()}</span>
                         </div>
