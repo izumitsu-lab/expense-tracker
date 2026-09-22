@@ -118,8 +118,8 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            max-height: 75vh;
-            background: rgba(255, 255, 255, 0.95);
+            max-height: 80vh;
+            background: rgba(255, 255, 255, 0.96);
             backdrop-filter: blur(25px);
             -webkit-backdrop-filter: blur(25px);
             border-top-left-radius: 20px;
@@ -340,6 +340,27 @@
         .pulse-focus {
             animation: pillAreaPulse 0.28s ease-out;
         }
+
+        /* お店セレクター用スタイル */
+        .shop-picker-card {
+            background: var(--ios-card);
+            border-radius: 16px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease-out;
+            border: 1px solid rgba(60, 60, 67, 0.08);
+        }
+        .shop-picker-card:active {
+            transform: scale(0.98);
+            background: #F2F2F7;
+        }
+        .shop-picker-card.active {
+            border-color: var(--ios-blue);
+            background: rgba(0, 122, 255, 0.06);
+        }
     </style>
 </head>
 <body>
@@ -416,21 +437,46 @@
         <div id="view-stats" class="view-section overflow-hidden">
             <div class="px-5 pb-2 pt-6 flex-shrink-0">
                 <h1 class="text-[34px] font-bold mb-4 tracking-tight">分析</h1>
-                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-5 w-full relative">
-                    <div id="stats-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow transition-transform duration-200 ease-out w-[calc(50%-2px)] left-[2px]"></div>
+                
+                <!-- 3タブ セグメント (Monthly, Yearly, Shop) -->
+                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-4 w-full relative">
+                    <div id="stats-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow transition-transform duration-200 ease-out w-[calc(33.333%-2px)] left-[2px]"></div>
                     <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('monthly', 0)">Monthly</div>
                     <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('yearly', 1)">Yearly</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer stats-seg-btn" onclick="setStatsTab('shop', 2)">Shop</div>
                 </div>
-                <div class="flex justify-between items-center mb-1">
-                    <button onclick="shiftStatsDate(-1)" class="p-2 text-[#007AFF] active:opacity-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
-                    <div class="text-center flex-1"><span class="text-gray-900 text-[17px] font-bold tracking-wide" id="lbl-stats-period"></span></div>
-                    <button onclick="shiftStatsDate(1)" class="p-2 text-[#007AFF] active:opacity-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
+
+                <!-- Monthly / Yearly 用ヘッダー -->
+                <div id="stats-period-header" class="block">
+                    <div class="flex justify-between items-center mb-1">
+                        <button onclick="shiftStatsDate(-1)" class="p-2 text-[#007AFF] active:opacity-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
+                        <div class="text-center flex-1"><span class="text-gray-900 text-[17px] font-bold tracking-wide" id="lbl-stats-period"></span></div>
+                        <button onclick="shiftStatsDate(1)" class="p-2 text-[#007AFF] active:opacity-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
+                    </div>
+                    <div class="text-center mt-3 mb-2">
+                        <div class="text-[13px] text-gray-500 font-medium">合計支出</div>
+                        <div class="text-[34px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-stats-total">0</span></div>
+                    </div>
                 </div>
-                <div class="text-center mt-3 mb-2">
-                    <div class="text-[13px] text-gray-500 font-medium">合計支出</div>
-                    <div class="text-[34px] font-bold text-gray-900 leading-none tracking-tight mt-1">¥<span id="lbl-stats-total">0</span></div>
+
+                <!-- Shop 用リッチセレクターヘッダー -->
+                <div id="stats-shop-header" class="hidden mb-3">
+                    <div onclick="openStatsShopPickerSheet()" class="bg-white rounded-2xl p-3.5 shadow-sm border border-[rgba(0,0,0,0.04)] flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span id="stats-selected-shop-icon" class="text-3xl shrink-0 w-10 h-10 flex items-center justify-center bg-[#F2F2F7] rounded-xl">🏪</span>
+                            <div class="min-w-0 flex flex-col">
+                                <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">選択中のお店</span>
+                                <span id="stats-selected-shop-name" class="text-[17px] font-extrabold text-gray-900 truncate">未選択</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 text-[#007AFF] text-sm font-bold shrink-0">
+                            変更
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                        </div>
+                    </div>
                 </div>
             </div>
+
             <div class="flex-1 overflow-y-auto px-5 pb-6 no-scrollbar" id="stats-content"></div>
         </div>
 
@@ -695,6 +741,24 @@
             <div class="flex-1 overflow-y-auto no-scrollbar p-4" style="max-height: 60vh;">
                 <div class="grid grid-cols-4 gap-2" id="grid-quick-times"></div>
             </div>
+        </div>
+
+        <!-- ==================== 分析用 お店選択ボトムシート (リッチセレクター) ==================== -->
+        <div id="sheet-stats-shop-backdrop" class="action-sheet-backdrop" onclick="closeStatsShopPickerSheet()"></div>
+        <div id="sheet-stats-shop-picker" class="action-sheet">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-2.5 mb-1 shrink-0"></div>
+            <div class="px-5 py-3 flex items-center justify-between border-b border-[rgba(60,60,67,0.1)] shrink-0">
+                <button class="text-[#007AFF] text-[16px] font-medium active:opacity-60" onclick="closeStatsShopPickerSheet()">閉じる</button>
+                <h3 class="font-bold text-[17px] text-gray-900 text-center">分析するお店を選択</h3>
+                <div class="w-12"></div>
+            </div>
+            <div class="px-4 py-2 border-b border-[rgba(60,60,67,0.06)] shrink-0">
+                <div class="relative flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5">
+                    <svg class="w-3.5 h-3.5 text-gray-400 mr-1.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="inp-stats-shop-search" oninput="renderStatsShopPickerList(this.value)" placeholder="店名を検索..." class="w-full bg-transparent text-[14px] text-gray-900 outline-none placeholder-gray-400">
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar p-4 flex flex-col gap-2.5" id="list-stats-shop-picker"></div>
         </div>
 
         <!-- ==================== MODALS ==================== -->
@@ -1017,7 +1081,6 @@
             return isNaN(d.getTime()) ? "12:00" : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
-        // 5:00から23:00までの60分刻みのデフォルト生成
         function generateDefaultQuickTimes() {
             const list = [];
             for (let h = 5; h <= 23; h++) {
@@ -1144,6 +1207,7 @@
 
         let statsTab = 'monthly';
         let statsCurrentDate = new Date(); statsCurrentDate.setHours(0,0,0,0);
+        let statsSelectedShopName = ''; // 分析で選択中のお店名
         
         let promptCallback = null;
         let confirmCallback = null;
@@ -1272,6 +1336,7 @@
             document.querySelectorAll('.modal-sheet').forEach(m => m.classList.remove('active')); 
             closeFilterSheet();
             closeTimePickerSheet();
+            closeStatsShopPickerSheet();
         }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function openPanel(id) { document.getElementById(id).classList.add('active'); renderPanelLists(); }
@@ -2161,11 +2226,279 @@
             document.getElementById('lbl-total').textContent = total.toLocaleString();
         }
 
-        function setStatsTab(tab, idx) { statsTab = tab; document.getElementById('stats-seg-indicator').style.transform = `translateX(${idx * 100}%)`; document.querySelectorAll('.stats-seg-btn').forEach((b, i) => { b.classList.toggle('text-gray-500', i !== idx); b.classList.toggle('text-black', i === idx); }); renderStats(); }
-        function shiftStatsDate(offset) { if (statsTab === 'monthly') statsCurrentDate.setMonth(statsCurrentDate.getMonth() + offset); else statsCurrentDate.setFullYear(statsCurrentDate.getFullYear() + offset); renderStats(); }
+        /* ==================== 分析 (Monthly, Yearly, Shop) ==================== */
+        function setStatsTab(tab, idx) { 
+            statsTab = tab; 
+            document.getElementById('stats-seg-indicator').style.transform = `translateX(${idx * 100}%)`; 
+            document.querySelectorAll('.stats-seg-btn').forEach((b, i) => { 
+                b.classList.toggle('text-gray-500', i !== idx); 
+                b.classList.toggle('text-black', i === idx); 
+            }); 
+
+            const periodHeader = document.getElementById('stats-period-header');
+            const shopHeader = document.getElementById('stats-shop-header');
+
+            if (tab === 'shop') {
+                periodHeader.classList.add('hidden');
+                shopHeader.classList.remove('hidden');
+                
+                // 選択中のお店が未設定、または該当しない場合、最も利用頻度の高いお店を初期選択
+                if (!statsSelectedShopName) {
+                    const shopCounts = {};
+                    state.transactions.forEach(t => {
+                        if (t.shopName) shopCounts[t.shopName] = (shopCounts[t.shopName] || 0) + 1;
+                    });
+                    const topShops = Object.keys(shopCounts).sort((a,b) => shopCounts[b] - shopCounts[a]);
+                    statsSelectedShopName = topShops[0] || (state.shops[0] ? state.shops[0].name : '');
+                }
+                updateStatsShopHeaderUI();
+            } else {
+                periodHeader.classList.remove('hidden');
+                shopHeader.classList.add('hidden');
+            }
+            renderStats(); 
+        }
+
+        function shiftStatsDate(offset) { 
+            if (statsTab === 'monthly') statsCurrentDate.setMonth(statsCurrentDate.getMonth() + offset); 
+            else if (statsTab === 'yearly') statsCurrentDate.setFullYear(statsCurrentDate.getFullYear() + offset); 
+            renderStats(); 
+        }
+
+        function updateStatsShopHeaderUI() {
+            const nameEl = document.getElementById('stats-selected-shop-name');
+            const iconEl = document.getElementById('stats-selected-shop-icon');
+            if (!nameEl || !iconEl) return;
+
+            if (!statsSelectedShopName) {
+                nameEl.textContent = 'お店を選択してください';
+                iconEl.textContent = '🏪';
+                return;
+            }
+
+            nameEl.textContent = statsSelectedShopName;
+            const shopObj = state.shops.find(s => s.name === statsSelectedShopName);
+            let icon = '🏪';
+            if (shopObj) {
+                const cls = state.shopClasses.find(c => c.id === shopObj.classId);
+                if (cls && cls.icon) icon = cls.icon;
+            }
+            iconEl.textContent = icon;
+        }
+
+        function openStatsShopPickerSheet() {
+            const inp = document.getElementById('inp-stats-shop-search');
+            if (inp) inp.value = '';
+            renderStatsShopPickerList('');
+            document.getElementById('sheet-stats-shop-backdrop').classList.add('active');
+            document.getElementById('sheet-stats-shop-picker').classList.add('active');
+        }
+
+        function closeStatsShopPickerSheet() {
+            document.getElementById('sheet-stats-shop-backdrop').classList.remove('active');
+            document.getElementById('sheet-stats-shop-picker').classList.remove('active');
+        }
+
+        // リッチなお店選択リストの描画
+        function renderStatsShopPickerList(searchQuery = '') {
+            const listEl = document.getElementById('list-stats-shop-picker');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const q = searchQuery.trim().toLowerCase();
+
+            // 店舗ごとの合計金額と回数を集計
+            const shopStatsMap = {};
+            state.transactions.forEach(t => {
+                const sName = t.shopName || '';
+                if (!sName) return;
+                if (!shopStatsMap[sName]) shopStatsMap[sName] = { total: 0, count: 0 };
+                shopStatsMap[sName].total += t.amount;
+                shopStatsMap[sName].count += 1;
+            });
+
+            // 登録されている店舗名、または履歴に存在する店舗名一覧
+            const shopNameSet = new Set(state.shops.map(s => s.name));
+            Object.keys(shopStatsMap).forEach(name => shopNameSet.add(name));
+
+            let shopArray = Array.from(shopNameSet).filter(name => {
+                if (!q) return true;
+                return name.toLowerCase().includes(q);
+            });
+
+            // 回数が多い順にソート
+            shopArray.sort((a, b) => {
+                const aCnt = (shopStatsMap[a] && shopStatsMap[a].count) || 0;
+                const bCnt = (shopStatsMap[b] && shopStatsMap[b].count) || 0;
+                return bCnt - aCnt;
+            });
+
+            if (shopArray.length === 0) {
+                listEl.innerHTML = '<div class="py-10 text-center text-gray-400 text-sm font-medium">該当するお店がありません</div>';
+                return;
+            }
+
+            shopArray.forEach(shopName => {
+                const shopObj = state.shops.find(s => s.name === shopName);
+                let icon = '🏪';
+                let className = '未分類';
+                if (shopObj) {
+                    const cls = state.shopClasses.find(c => c.id === shopObj.classId);
+                    if (cls) {
+                        icon = cls.icon;
+                        className = cls.name;
+                    }
+                }
+
+                const sData = shopStatsMap[shopName] || { total: 0, count: 0 };
+                const isSelected = (statsSelectedShopName === shopName);
+
+                const card = document.createElement('div');
+                card.className = `shop-picker-card ${isSelected ? 'active' : ''}`;
+                card.onclick = () => {
+                    statsSelectedShopName = shopName;
+                    updateStatsShopHeaderUI();
+                    closeStatsShopPickerSheet();
+                    renderStats();
+                };
+
+                card.innerHTML = `
+                    <div class="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center text-2xl shrink-0">
+                        ${escapeHTML(icon)}
+                    </div>
+                    <div class="flex flex-col min-w-0 flex-1">
+                        <span class="text-[16px] font-bold text-gray-900 truncate">${escapeHTML(shopName)}</span>
+                        <span class="text-[12px] text-gray-400 font-medium">${escapeHTML(className)}</span>
+                    </div>
+                    <div class="flex flex-col items-end shrink-0">
+                        <span class="text-[15px] font-extrabold text-gray-900">¥${sData.total.toLocaleString()}</span>
+                        <span class="text-[11px] text-gray-400 font-semibold">${sData.count}回 利用</span>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
 
         function renderStats() {
             const container = document.getElementById('stats-content'); container.innerHTML = '';
+            
+            // ===== Shopタブのレンダリング =====
+            if (statsTab === 'shop') {
+                if (!statsSelectedShopName) {
+                    container.innerHTML = `
+                        <div class="py-16 text-center text-gray-400 font-medium flex flex-col items-center">
+                            <span class="text-4xl mb-3">🏪</span>
+                            <span>上のボタンからお店を選んでください</span>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const shopTxns = state.transactions.filter(t => t.shopName === statsSelectedShopName);
+                if (shopTxns.length === 0) {
+                    container.innerHTML = `
+                        <div class="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(0,0,0,0.03)] text-center">
+                            <p class="text-gray-400 text-sm font-medium">このお店の利用履歴はまだありません</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const totalAmount = shopTxns.reduce((sum, t) => sum + t.amount, 0);
+                const count = shopTxns.length;
+                const average = Math.round(totalAmount / count);
+
+                // 時間帯集計 (24時間)
+                const hourCounts = new Array(24).fill(0);
+                shopTxns.forEach(t => {
+                    const timeStr = t.time || (t.ts ? formatTimeFromTs(t.ts) : '12:00');
+                    const h = parseInt(timeStr.split(':')[0], 10);
+                    if (!isNaN(h) && h >= 0 && h < 24) hourCounts[h]++;
+                });
+
+                // 3時間ブロックごとの最も利用頻度の高い時間帯を算出 (例: 18〜21時)
+                let maxBlockCount = -1;
+                let popularTimeRange = "未定";
+                for (let h = 0; h < 24; h += 3) {
+                    const blockCount = hourCounts[h] + (hourCounts[h+1] || 0) + (hourCounts[h+2] || 0);
+                    if (blockCount > maxBlockCount && blockCount > 0) {
+                        maxBlockCount = blockCount;
+                        popularTimeRange = `${h}〜${h + 3}時`;
+                    }
+                }
+
+                // 時間帯ブロック分布バーの作成
+                const maxHour = Math.max(...hourCounts, 1);
+                let timeBarHtml = '';
+                const timeBlocks = [
+                    { label: '朝 6-11', count: hourCounts.slice(6, 12).reduce((a,b)=>a+b, 0) },
+                    { label: '昼 12-16', count: hourCounts.slice(12, 17).reduce((a,b)=>a+b, 0) },
+                    { label: '夕・夜 17-21', count: hourCounts.slice(17, 22).reduce((a,b)=>a+b, 0) },
+                    { label: '深夜 22-5', count: hourCounts.slice(22, 24).reduce((a,b)=>a+b, 0) + hourCounts.slice(0, 6).reduce((a,b)=>a+b, 0) }
+                ];
+                const maxBlock = Math.max(...timeBlocks.map(b => b.count), 1);
+
+                timeBlocks.forEach(b => {
+                    const pct = Math.max((b.count / maxBlock) * 100, b.count > 0 ? 4 : 0);
+                    timeBarHtml += `
+                        <div class="flex items-center gap-2 mb-2 text-xs">
+                            <span class="w-20 text-gray-500 font-medium shrink-0">${b.label}</span>
+                            <div class="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                                <div class="bg-[#007AFF] h-full rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                            </div>
+                            <span class="w-8 text-right font-bold text-gray-800 shrink-0">${b.count}回</span>
+                        </div>
+                    `;
+                });
+
+                // 直近の利用履歴リスト
+                const recentTxns = [...shopTxns].sort((a,b) => (b.date !== a.date ? (b.date > a.date ? 1 : -1) : (b.ts || 0) - (a.ts || 0))).slice(0, 5);
+                let recentHistoryHtml = '';
+                recentTxns.forEach(t => {
+                    recentHistoryHtml += `
+                        <div class="flex justify-between items-center py-2.5 border-b border-gray-100 last:border-b-0 text-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-400 font-semibold">${t.date}</span>
+                                <span class="text-xs text-gray-500">${t.time || ''}</span>
+                            </div>
+                            <span class="font-bold text-gray-900">¥${t.amount.toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                        <div class="text-[20px] font-extrabold text-gray-900 mb-1 tracking-tight">${escapeHTML(statsSelectedShopName)}</div>
+                        <div class="text-[26px] font-black text-[#007AFF] tracking-tight mb-5 leading-tight">
+                            ¥${totalAmount.toLocaleString()} <span class="text-base font-bold text-gray-400 ml-1">/ ${count}回</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-[rgba(60,60,67,0.08)]">
+                            <div class="bg-[#F2F2F7] rounded-xl p-3 flex flex-col justify-center">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">よく使う時間</span>
+                                <span class="text-[18px] font-extrabold text-gray-900 mt-1">${popularTimeRange}</span>
+                            </div>
+                            <div class="bg-[#F2F2F7] rounded-xl p-3 flex flex-col justify-center">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">平均単価</span>
+                                <span class="text-[18px] font-extrabold text-gray-900 mt-1">平均 ¥${average.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                        <h3 class="text-[14px] font-bold text-gray-900 mb-3 tracking-wide">時間帯の傾向</h3>
+                        <div class="flex flex-col">${timeBarHtml}</div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-[rgba(0,0,0,0.03)]">
+                        <h3 class="text-[14px] font-bold text-gray-900 mb-2 tracking-wide">直近の利用</h3>
+                        <div class="flex flex-col">${recentHistoryHtml}</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // ===== Monthly / Yearly タブのレンダリング =====
             const target = new Date(statsCurrentDate); const y = target.getFullYear(); const m = target.getMonth();
             let filtered = []; let periodLabel = '';
             if (statsTab === 'monthly') { const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`; filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); periodLabel = `${y}年${m+1}月`; } 
