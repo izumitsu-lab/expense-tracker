@@ -267,7 +267,28 @@
         .sort-icon-btn:active { transform: scale(0.92); background: rgba(142, 142, 147, 0.22); }
         .sort-icon-btn.active { background: rgba(0, 122, 255, 0.15); color: var(--ios-blue); }
 
-        /* 時間帯ピルボタン (時刻表記なし・ミニマルデザイン) */
+        /* 「今日に戻る」ピルボタン */
+        .today-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+            height: 32px;
+            border-radius: 16px;
+            background: rgba(0, 122, 255, 0.1);
+            color: var(--ios-blue);
+            font-size: 13px;
+            font-weight: 700;
+            transition: all 0.15s ease-out;
+            cursor: pointer;
+            user-select: none;
+        }
+        .today-icon-btn:active {
+            transform: scale(0.92);
+            background: rgba(0, 122, 255, 0.2);
+        }
+
+        /* 時間帯ピルボタン */
         .time-pill {
             display: inline-flex;
             align-items: center;
@@ -423,6 +444,11 @@
                     <h1 class="text-[32px] font-extrabold tracking-tight text-gray-900 leading-none">履歴</h1>
                     
                     <div class="flex items-center gap-2">
+                        <!-- カレンダー内「今日に戻る」ボタン -->
+                        <button onclick="jumpToToday()" class="today-icon-btn" title="今日の日付に戻る">
+                            今日
+                        </button>
+
                         <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg>
                         </button>
@@ -681,7 +707,7 @@
             </div>
         </div>
 
-        <!-- 詳細確認モーダル (現在は一番左、表記なしピル) -->
+        <!-- 詳細確認モーダル -->
         <div id="modal-detail" class="modal-sheet bg-[#F2F2F7] z-[70]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-detail')">キャンセル</button>
@@ -691,7 +717,7 @@
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar flex flex-col relative pb-8 pt-4">
                 <div class="ios-list mb-6 shadow-sm shrink-0">
                     <div class="ios-item py-4">
-                        <span class="text-gray-900 font-medium">金額</span>
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0">金額</span>
                         <div class="flex items-center flex-grow justify-end">
                             <input type="number" id="inp-amount" class="ios-input text-gray-900 font-bold text-[28px] p-0 h-8">
                             <span class="ml-1 text-gray-500 font-bold text-xl">円</span>
@@ -700,14 +726,14 @@
                 </div>
                 <div class="ios-list shadow-sm shrink-0 mb-6">
                     <div class="ios-item">
-                        <span class="w-24 text-gray-900 font-medium">日付</span>
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">日付</span>
                         <input type="date" id="inp-date" onchange="onDateInputChange(this.value)" class="ios-input font-medium cursor-pointer">
                     </div>
                     
-                    <!-- 朝・昼・夜・30分単位ピルUI (シンプル表記) -->
+                    <!-- 朝・昼・夜・30分単位ピルUI -->
                     <div class="ios-item flex-col items-start py-3 gap-2.5" id="item-time-container">
                         <div class="w-full flex justify-between items-center">
-                            <span class="text-gray-900 font-medium text-[16px]">時間</span>
+                            <span class="text-gray-900 font-medium text-[16px] whitespace-nowrap shrink-0">時間</span>
                             <div class="flex items-center gap-1.5">
                                 <span id="lbl-display-time" class="text-[#007AFF] font-bold text-[17px] tracking-tight">12:00</span>
                                 <input type="hidden" id="inp-time" value="12:00">
@@ -718,11 +744,17 @@
                         <div class="w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="container-time-pills"></div>
                     </div>
 
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">分類</span><select id="inp-class" class="ios-input appearance-none bg-transparent" onchange="updateShopSelect('inp-class','inp-shop')" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">カテゴリー</span><select id="inp-cat" class="ios-input appearance-none bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">分類</span>
+                        <select id="inp-class" class="ios-input appearance-none bg-transparent" onchange="updateShopSelect('inp-class','inp-shop')" dir="rtl"></select>
+                    </div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">カテゴリー</span>
+                        <select id="inp-cat" class="ios-input appearance-none bg-transparent" dir="rtl"></select>
+                    </div>
                     
                     <div class="ios-item pr-4">
-                        <span class="w-16 text-gray-900 font-medium shrink-0">お店</span>
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">お店</span>
                         <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
                             <select id="inp-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" onchange="handleShopSelectChange('inp-shop','inp-class','inp-cat','inp-payment')" dir="rtl"></select>
                             <button onclick="promptAddNewShop('inp-class','inp-shop','inp-cat','inp-payment')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
@@ -731,8 +763,14 @@
                         </div>
                     </div>
 
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">支払い</span><select id="inp-payment" class="ios-input appearance-none text-[#007AFF] font-medium bg-transparent" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">メモ</span><input type="text" id="inp-memo" class="ios-input font-medium" placeholder="追加情報..."></div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">支払い</span>
+                        <select id="inp-payment" class="ios-input appearance-none text-[#007AFF] font-medium bg-transparent" dir="rtl"></select>
+                    </div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">メモ</span>
+                        <input type="text" id="inp-memo" class="ios-input font-medium" placeholder="追加情報...">
+                    </div>
                 </div>
                 <div id="box-delete" class="mb-6 hidden shrink-0">
                     <button class="text-red-500 font-bold bg-white w-full py-4 rounded-xl shadow-sm active:bg-red-50 text-[17px]" onclick="deleteTransaction()">この記録を削除</button>
@@ -753,11 +791,11 @@
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
                 <div class="ios-list shadow-sm">
                     <div class="ios-item">
-                        <span class="w-24 text-gray-900">名称</span>
+                        <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">名称</span>
                         <input type="text" id="ed-ts-name" class="ios-input text-left ml-0" placeholder="例: 朝、昼、夜、深夜">
                     </div>
                     <div class="ios-item">
-                        <span class="w-24 text-gray-900">時刻</span>
+                        <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">時刻</span>
                         <input type="time" id="ed-ts-time" class="ios-input text-right font-bold text-[#007AFF] text-[18px]">
                     </div>
                 </div>
@@ -775,11 +813,11 @@
             </div>
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
                 <div class="ios-list shadow-sm">
-                    <div class="ios-item"><span class="w-24 text-gray-900">店名</span><input type="text" id="ed-shop-name" class="ios-input text-left ml-0" placeholder="お店の名前"></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="ed-shop-class" class="ios-input bg-transparent" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="ed-shop-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="ed-shop-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="ed-shop-memo" class="ios-input text-left ml-0" placeholder="デフォルトメモ"></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">店名</span><input type="text" id="ed-shop-name" class="ios-input text-left ml-0" placeholder="お店の名前"></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">分類</span><select id="ed-shop-class" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">カテゴリー</span><select id="ed-shop-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">支払い</span><select id="ed-shop-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">メモ</span><input type="text" id="ed-shop-memo" class="ios-input text-left ml-0" placeholder="デフォルトメモ"></div>
                 </div>
             </div>
         </div>
@@ -792,15 +830,15 @@
             </div>
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
                 <div class="ios-list shadow-sm mb-6">
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">登録名</span><input type="text" id="sh-name" class="ios-input text-left ml-0" placeholder="例: バス通勤"></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">金額</span><input type="number" id="sh-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="任意"></div>
+                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">登録名</span><input type="text" id="sh-name" class="ios-input text-left ml-0" placeholder="例: バス通勤"></div>
+                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span><input type="number" id="sh-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="任意"></div>
                 </div>
                 <h3 class="text-xs text-gray-500 mb-2 ml-2 font-semibold">自動入力される内容</h3>
                 <div class="ios-list shadow-sm">
-                    <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="sh-class" class="ios-input bg-transparent" onchange="updateShopSelect('sh-class','sh-shop')" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="sh-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">分類</span><select id="sh-class" class="ios-input bg-transparent" onchange="updateShopSelect('sh-class','sh-shop')" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">カテゴリー</span><select id="sh-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
                     <div class="ios-item pr-4">
-                        <span class="w-16 text-gray-900 shrink-0">お店</span>
+                        <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">お店</span>
                         <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
                             <select id="sh-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" onchange="handleShopSelectChange('sh-shop','sh-class','sh-cat','sh-pay')" dir="rtl"></select>
                             <button onclick="promptAddNewShop('sh-class','sh-shop','sh-cat','sh-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
@@ -808,8 +846,8 @@
                             </button>
                         </div>
                     </div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="sh-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="sh-memo" class="ios-input text-left ml-0" placeholder=""></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">支払い</span><select id="sh-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">メモ</span><input type="text" id="sh-memo" class="ios-input text-left ml-0" placeholder=""></div>
                 </div>
             </div>
         </div>
@@ -822,10 +860,10 @@
             </div>
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
                 <div class="ios-list shadow-sm mb-6">
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">登録名</span><input type="text" id="fx-name" class="ios-input text-left ml-0" placeholder="例: 家賃"></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">金額</span><input type="number" id="fx-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000"></div>
+                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">登録名</span><input type="text" id="fx-name" class="ios-input text-left ml-0" placeholder="例: 家賃"></div>
+                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span><input type="number" id="fx-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000"></div>
                     <div class="ios-item">
-                        <span class="w-24 text-gray-900 font-medium whitespace-nowrap">毎月の追加日</span>
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">毎月の追加日</span>
                         <div class="flex items-center flex-grow justify-end">
                             <input type="number" id="fx-day" min="1" max="31" class="ios-input text-[#007AFF] font-bold text-right p-0 h-8 w-12" value="1">
                             <span class="ml-1 text-gray-500 font-bold text-[17px]">日</span>
@@ -834,11 +872,11 @@
                 </div>
                 <h3 class="text-xs text-gray-500 mb-2 ml-2 font-semibold">自動入力される内容</h3>
                 <div class="ios-list shadow-sm">
-                    <div class="ios-item"><span class="w-24 text-gray-900">分類</span><select id="fx-class" class="ios-input bg-transparent" onchange="updateShopSelect('fx-class','fx-shop')" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">カテゴリー</span><select id="fx-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">分類</span><select id="fx-class" class="ios-input bg-transparent" onchange="updateShopSelect('fx-class','fx-shop')" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">カテゴリー</span><select id="fx-cat" class="ios-input bg-transparent" dir="rtl"></select></div>
                     
                     <div class="ios-item pr-4">
-                        <span class="w-16 text-gray-900 shrink-0">お店</span>
+                        <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">お店</span>
                         <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
                             <select id="fx-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" onchange="handleShopSelectChange('fx-shop','fx-class','fx-cat','fx-pay')" dir="rtl"></select>
                             <button onclick="promptAddNewShop('fx-class','fx-shop','fx-cat','fx-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
@@ -847,8 +885,8 @@
                         </div>
                     </div>
 
-                    <div class="ios-item"><span class="w-24 text-gray-900">支払い</span><select id="fx-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
-                    <div class="ios-item"><span class="w-24 text-gray-900">メモ</span><input type="text" id="fx-memo" class="ios-input text-left ml-0" placeholder=""></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">支払い</span><select id="fx-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">メモ</span><input type="text" id="fx-memo" class="ios-input text-left ml-0" placeholder=""></div>
                 </div>
                 <div class="flex gap-3 mt-6">
                     <button class="flex-1 text-[#007AFF] font-bold bg-white py-4 rounded-xl shadow-sm active:bg-gray-50 text-[15px] border border-[rgba(0,122,255,0.2)]" onclick="manualAddFixed()">手動で履歴に追加</button>
@@ -1189,10 +1227,33 @@
 
         function resetMainView() { currentAmount = "0"; updateAmount(); currentTranslate = 0; document.getElementById('swipe-container').style.transform = `translateX(0%)`; }
 
+        function jumpToToday() {
+            calCurrentDate = new Date();
+            calCurrentDate.setHours(0, 0, 0, 0);
+            renderCalendar();
+            const calContent = document.getElementById('cal-content');
+            if (calContent) calContent.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function switchView(target, subTarget) {
-            closeAllModals(); document.querySelectorAll('.slide-panel, .overlay').forEach(el => el.classList.remove('active')); document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-            document.getElementById(`view-${target}`).classList.add('active'); updateNavColors(target, subTarget);
-            if (target === 'calendar') { updateFilterButtonsUI(); renderCalendar(); }
+            // すでに履歴画面にいる状態で「履歴」ボタンが押された場合は「今日」に戻る
+            const isAlreadyInCalendar = (target === 'calendar' && document.getElementById('view-calendar').classList.contains('active'));
+            if (isAlreadyInCalendar) {
+                jumpToToday();
+                return;
+            }
+
+            closeAllModals(); 
+            document.querySelectorAll('.slide-panel, .overlay').forEach(el => el.classList.remove('active')); 
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(`view-${target}`).classList.add('active'); 
+            updateNavColors(target, subTarget);
+
+            if (target === 'calendar') { 
+                updateFilterButtonsUI(); 
+                renderCalendar(); 
+            }
             if (target === 'main') renderShortcuts(); 
             if (target === 'stats') renderStats(); 
             if (target === 'fixed') renderFixedExpenses();
@@ -1475,15 +1536,15 @@
             document.getElementById('modal-shops').classList.add('active');
         }
 
-        /* ==================== 朝・昼・夜 ＋ 30分刻みボトムシートUI (表記なし・現在一番左) ==================== */
-        let currentTimeSlotMode = 'now'; // 'preset' | 'now' | 'custom' | null(未選択)
+        /* ==================== 朝・昼・夜 ＋ 30分刻みボトムシートUI ==================== */
+        let currentTimeSlotMode = 'now';
 
         function renderTimePills(activeTime, isSelected = true) {
             const container = document.getElementById('container-time-pills');
             if (!container) return;
             container.innerHTML = '';
 
-            // 1. 「現在」ボタンを一番左に配置（時間表記なし）
+            // 1. 「現在」ボタンを一番左に配置
             const nowTime = roundToHalfHour(new Date());
             const isNowSelected = isSelected && (currentTimeSlotMode === 'now');
             const nowBtn = document.createElement('button');
@@ -1493,7 +1554,7 @@
             nowBtn.onclick = () => selectTimeSlot(nowTime, 'now');
             container.appendChild(nowBtn);
 
-            // 2. 朝、昼、夜などのプリセットピル（時間表記なし）
+            // 2. 朝、昼、夜などのプリセットピル
             const slots = state.timeSlots && state.timeSlots.length > 0 ? state.timeSlots : DEFAULT_STATE.timeSlots;
             let matchedSlot = false;
 
@@ -1536,17 +1597,16 @@
             renderTimePills(timeVal, true);
         }
 
-        // 日付変更時のトリガー：勝手に朝を青くせず、未選択状態にして選択を促す
         function onDateInputChange(newDateStr) {
             if (!newDateStr) return;
             const container = document.getElementById('item-time-container');
             if (container) {
                 container.classList.remove('pulse-focus');
-                void container.offsetWidth; // リフロー発生
+                void container.offsetWidth;
                 container.classList.add('pulse-focus');
             }
             currentTimeSlotMode = null;
-            renderTimePills('', false); // 全てのピルを非アクティブにして選ばせる
+            renderTimePills('', false);
         }
 
         /* 30分刻みボトムシート */
@@ -1595,7 +1655,6 @@
                 document.getElementById('inp-date').value = txnToEdit.date;
                 initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : roundToHalfHour(now));
                 
-                // 既存のtimeSlotsと照合
                 const matchSlot = state.timeSlots.find(s => s.time === initTime);
                 currentTimeSlotMode = matchSlot ? 'preset' : 'custom';
                 renderTimePills(initTime, true);
@@ -1888,8 +1947,8 @@
             }
             else if (calTab === 'yearly') {
                 const yearPrefix = `${y}-`;
-                filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix));
-                periodLabel = `${y}年`;
+                filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix)); 
+                periodLabel = `${y}年`; 
             }
 
             document.getElementById('lbl-period').textContent = periodLabel;
