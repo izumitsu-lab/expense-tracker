@@ -542,6 +542,7 @@
                     <div class="flex items-baseline gap-2">
                         <span class="text-gray-500 text-[13px] font-medium" id="lbl-period">今日</span>
                         <span class="text-[20px] font-bold text-gray-900 tracking-tight">¥<span id="lbl-total">0</span></span>
+                        <span class="text-[11px] font-semibold text-gray-400 hidden" id="lbl-perday-wrap">(¥<span id="lbl-perday">0</span>/日)</span>
                     </div>
                     <button onclick="shiftDate(1)" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
                 </div>
@@ -2097,35 +2098,38 @@
         function renderCalendar() {
             const list = document.getElementById('list-expenses'); list.innerHTML = '';
             const target = new Date(calCurrentDate); const y = target.getFullYear(); const m = target.getMonth(); const d = target.getDate();
-            let filtered = []; let periodLabel = '';
+            let filtered = []; let periodLabel = ''; let periodStart = null, periodEnd = null;
 
-            if (calTab === 'daily') { 
-                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; 
-                filtered = state.transactions.filter(t => t.date === dateStr); 
-                const dayStr = ['日','月','火','水','木','金','土'][target.getDay()]; 
-                periodLabel = `${y}年${m+1}月${d}日 (${dayStr})`; 
-            } 
-            else if (calTab === 'weekly') { 
-                const wStart = new Date(target); 
-                wStart.setDate(target.getDate() - target.getDay()); 
-                const wEnd = new Date(wStart); 
-                wEnd.setDate(wStart.getDate() + 6); 
-                filtered = state.transactions.filter(t => { 
-                    const td = new Date(t.date); 
-                    td.setHours(0,0,0,0); 
-                    return td >= wStart && td <= wEnd; 
-                }); 
-                periodLabel = `${wStart.getMonth()+1}/${wStart.getDate()} 〜 ${wEnd.getMonth()+1}/${wEnd.getDate()}`; 
-            } 
-            else if (calTab === 'monthly') { 
-                const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`; 
-                filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); 
-                periodLabel = `${y}年${m+1}月`; 
+            if (calTab === 'daily') {
+                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                filtered = state.transactions.filter(t => t.date === dateStr);
+                const dayStr = ['日','月','火','水','木','金','土'][target.getDay()];
+                periodLabel = `${y}年${m+1}月${d}日 (${dayStr})`;
             }
-            else if (calTab === 'yearly') { 
+            else if (calTab === 'weekly') {
+                const wStart = new Date(target);
+                wStart.setDate(target.getDate() - target.getDay());
+                const wEnd = new Date(wStart);
+                wEnd.setDate(wStart.getDate() + 6);
+                filtered = state.transactions.filter(t => {
+                    const td = new Date(t.date);
+                    td.setHours(0,0,0,0);
+                    return td >= wStart && td <= wEnd;
+                });
+                periodLabel = `${wStart.getMonth()+1}/${wStart.getDate()} 〜 ${wEnd.getMonth()+1}/${wEnd.getDate()}`;
+                periodStart = wStart; periodEnd = wEnd;
+            }
+            else if (calTab === 'monthly') {
+                const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`;
+                filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix));
+                periodLabel = `${y}年${m+1}月`;
+                periodStart = new Date(y, m, 1); periodEnd = new Date(y, m + 1, 0);
+            }
+            else if (calTab === 'yearly') {
                 const yearPrefix = `${y}-`;
-                filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix)); 
-                periodLabel = `${y}年`; 
+                filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix));
+                periodLabel = `${y}年`;
+                periodStart = new Date(y, 0, 1); periodEnd = new Date(y, 11, 31);
             }
 
             document.getElementById('lbl-period').textContent = periodLabel;
@@ -2224,6 +2228,28 @@
                 });
             }
             document.getElementById('lbl-total').textContent = total.toLocaleString();
+
+            // 1日あたりの金額（Weekly / Monthly / Yearly のみ表示。Dailyは1日分の合計＝そのままなので不要）
+            const perDayWrap = document.getElementById('lbl-perday-wrap');
+            if (calTab !== 'daily' && periodStart && periodEnd) {
+                periodStart.setHours(0, 0, 0, 0); periodEnd.setHours(0, 0, 0, 0);
+                const allDatesSorted = state.transactions.map(t => t.date).filter(Boolean).sort();
+                let perDayText = '0';
+                if (allDatesSorted.length > 0) {
+                    const firstEverDate = new Date(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const effectiveStart = firstEverDate > periodStart ? firstEverDate : periodStart;
+                    const effectiveEnd = today < periodEnd ? today : periodEnd;
+                    const elapsedDays = Math.round((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
+                    if (elapsedDays > 0) {
+                        perDayText = Math.round(total / elapsedDays).toLocaleString();
+                    }
+                }
+                document.getElementById('lbl-perday').textContent = perDayText;
+                perDayWrap.classList.remove('hidden');
+            } else {
+                perDayWrap.classList.add('hidden');
+            }
         }
 
         /* ==================== 分析 (Monthly, Yearly, Shop) ==================== */
@@ -2617,38 +2643,59 @@
             // 今日と期間末のうち「早い方」までの経過日数で割る（データが存在しない期間を分母に含めないため）
             const allDatesSorted = state.transactions.map(t => t.date).filter(Boolean).sort();
             let perDayText = '0';
+            let elapsedDays = null;
             if (allDatesSorted.length > 0) {
                 const firstEverDate = new Date(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
                 const today = new Date(); today.setHours(0, 0, 0, 0);
                 const effectiveStart = firstEverDate > periodStart ? firstEverDate : periodStart;
                 const effectiveEnd = today < periodEnd ? today : periodEnd;
-                const elapsedDays = Math.round((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
+                elapsedDays = Math.round((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
                 if (elapsedDays > 0) {
                     perDayText = Math.round(total / elapsedDays).toLocaleString();
                 }
             }
             document.getElementById('lbl-stats-perday').textContent = perDayText;
+            // 回数の「1ヶ月あたり」換算用。分母のミニマムは30.4日（=1ヶ月）とし、それより短い期間で不当に数値が膨らむのを防ぐ
+            const monthsCountForFreq = (elapsedDays && elapsedDays > 0) ? Math.max(1, elapsedDays / 30.4) : 1;
 
             if (total === 0) { container.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium">データがありません</div>`; return; }
 
-            function buildSection(title, mapObj, idResolver, isCount = false) {
+            function buildSection(title, mapObj, idResolver, isCount = false, perUnitDivisor = null, perUnitLabel = '') {
                 const arr = Object.keys(mapObj).map(id => { let name = id; if (idResolver) { const item = idResolver.find(x => x.id === id); name = item ? item.name : '不明'; } return { name, val: mapObj[id] }; }).sort((a,b) => b.val - a.val);
                 if (arr.length === 0) return ''; const maxVal = arr[0].val; const top5 = arr.slice(0, 5);
                 let html = `<div class="bg-white rounded-2xl p-4 mb-5 shadow-sm border border-[rgba(0,0,0,0.03)]"><h2 class="text-[15px] font-bold text-gray-900 mb-4">${escapeHTML(title)}</h2><div class="flex flex-col gap-3">`;
-                top5.forEach(item => { const pct = Math.max((item.val / maxVal) * 100, 1); const displayVal = isCount ? `${item.val}回` : `¥${item.val.toLocaleString()}`; html += `<div class="flex flex-col"><div class="flex justify-between items-end mb-1"><span class="text-[13px] font-medium text-gray-700 truncate w-3/5">${escapeHTML(item.name)}</span><span class="text-[14px] font-bold text-gray-900">${displayVal}</span></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-[6px] rounded-full transition-all duration-500" style="width: ${pct}%"></div></div></div>`; });
-                html += `</div>`; if (arr.length > 5) { const dataStr = encodeURIComponent(JSON.stringify(arr)); html += `<button onclick="openStatsDetail('${escapeHTML(title)}', '${dataStr}', ${isCount})" class="w-full mt-4 py-2.5 bg-gray-50 text-[#007AFF] font-bold text-[14px] rounded-xl active:bg-gray-100">すべて見る</button>`; }
+                top5.forEach(item => {
+                    const pct = Math.max((item.val / maxVal) * 100, 1); const displayVal = isCount ? `${item.val}回` : `¥${item.val.toLocaleString()}`;
+                    let rateHtml = '';
+                    if (perUnitDivisor && perUnitDivisor > 0) {
+                        const rateVal = item.val / perUnitDivisor;
+                        const rateText = isCount ? `${rateVal.toFixed(1)}回${perUnitLabel}` : `¥${Math.round(rateVal).toLocaleString()}${perUnitLabel}`;
+                        rateHtml = ` <span class="text-[11px] text-gray-400 font-semibold">(${rateText})</span>`;
+                    }
+                    html += `<div class="flex flex-col"><div class="flex justify-between items-end mb-1"><span class="text-[13px] font-medium text-gray-700 truncate w-3/5">${escapeHTML(item.name)}</span><span class="text-[14px] font-bold text-gray-900">${displayVal}${rateHtml}</span></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-[6px] rounded-full transition-all duration-500" style="width: ${pct}%"></div></div></div>`;
+                });
+                html += `</div>`; if (arr.length > 5) { const dataStr = encodeURIComponent(JSON.stringify(arr)); html += `<button onclick="openStatsDetail('${escapeHTML(title)}', '${dataStr}', ${isCount}, ${perUnitDivisor || 'null'}, '${perUnitLabel}')" class="w-full mt-4 py-2.5 bg-gray-50 text-[#007AFF] font-bold text-[14px] rounded-xl active:bg-gray-100">すべて見る</button>`; }
                 html += `</div>`; return html;
             }
-            container.innerHTML = buildSection('カテゴリー別', catMap, state.categories) + buildSection('支払い方法別', payMap, state.paymentMethods) + buildSection('お店別 (金額)', shopAmtMap, null) + buildSection('お店別 (利用回数)', shopCntMap, null, true);
+            container.innerHTML = buildSection('カテゴリー別', catMap, state.categories, false, elapsedDays, '/日')
+                + buildSection('支払い方法別', payMap, state.paymentMethods, false, elapsedDays, '/日')
+                + buildSection('お店別 (金額)', shopAmtMap, null, false, elapsedDays, '/日')
+                + buildSection('お店別 (利用回数)', shopCntMap, null, true, monthsCountForFreq, '/月');
         }
 
-        window.openStatsDetail = (title, dataStr, isCount) => {
+        window.openStatsDetail = (title, dataStr, isCount, perUnitDivisor = null, perUnitLabel = '') => {
             const arr = JSON.parse(decodeURIComponent(dataStr)); document.getElementById('title-stats-detail').textContent = title; const list = document.getElementById('list-stats-detail'); list.innerHTML = '';
             const maxVal = arr[0].val; const totalVal = arr.reduce((sum, item) => sum + item.val, 0);
             arr.forEach(item => {
                 const pct = Math.max((item.val / maxVal) * 100, 1); const share = Math.round((item.val / totalVal) * 100); const displayVal = isCount ? `${item.val}回` : `¥${item.val.toLocaleString()}`;
+                let rateHtml = '';
+                if (perUnitDivisor && perUnitDivisor > 0) {
+                    const rateVal = item.val / perUnitDivisor;
+                    const rateText = isCount ? `${rateVal.toFixed(1)}回${perUnitLabel}` : `¥${Math.round(rateVal).toLocaleString()}${perUnitLabel}`;
+                    rateHtml = `<span class="text-[10px] text-gray-400 font-semibold ml-1">(${rateText})</span>`;
+                }
                 const div = document.createElement('div'); div.className = "ios-item flex-col items-stretch py-3 px-0 border-none bg-transparent mb-1";
-                div.innerHTML = `<div class="flex justify-between items-center mb-1.5"><span class="font-medium text-[15px] text-gray-900 truncate w-1/2">${escapeHTML(item.name)}</span><div class="text-right"><span class="font-bold text-[15px] text-gray-900">${displayVal}</span><span class="text-[11px] text-gray-400 ml-1 inline-block w-8 text-right">${share}%</span></div></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-full rounded-full" style="width: ${pct}%"></div></div>`;
+                div.innerHTML = `<div class="flex justify-between items-center mb-1.5"><span class="font-medium text-[15px] text-gray-900 truncate w-1/2">${escapeHTML(item.name)}</span><div class="text-right"><span class="font-bold text-[15px] text-gray-900">${displayVal}</span>${rateHtml}<span class="text-[11px] text-gray-400 ml-1 inline-block w-8 text-right">${share}%</span></div></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-full rounded-full" style="width: ${pct}%"></div></div>`;
                 list.appendChild(div);
             });
             document.getElementById('modal-stats-detail').classList.add('active');
