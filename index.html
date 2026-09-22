@@ -2408,9 +2408,8 @@
                 const dayCounts = new Array(7).fill(0);
                 const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                 
-                // 3. 利用期間の算出（月平均計算用）
-                let earliestTime = Infinity;
-                let latestTime = -Infinity;
+                // 3. 利用月のユニーク集合（YYYY-MM）
+                const uniqueMonths = new Set();
 
                 shopTxns.forEach(t => {
                     const timeStr = t.time || (t.ts ? formatTimeFromTs(t.ts) : '12:00');
@@ -2421,9 +2420,9 @@
                         const dObj = new Date(t.date);
                         if (!isNaN(dObj.getTime())) {
                             dayCounts[dObj.getDay()]++;
-                            const dTime = dObj.getTime();
-                            if (dTime < earliestTime) earliestTime = dTime;
-                            if (dTime > latestTime) latestTime = dTime;
+                            // YYYY-MM を抽出
+                            const ym = t.date.substring(0, 7);
+                            if (ym) uniqueMonths.add(ym);
                         }
                     }
                 });
@@ -2464,38 +2463,27 @@
                     if (topRatio >= 0.35) {
                         popularDayText = `${dayNames[popularDayIndex]}曜日`;
                     } else if (weekendRatio >= 0.50) {
-                        // 土日率が50%以上（通常土日は2/7＝約28%なので十分強い傾向）
+                        // 土日率が50%以上
                         popularDayText = "土日・休日";
                     } else if (weekdayRatio >= 0.85) {
-                        // 平日率が85%以上（ほぼ平日のみ）
+                        // 平日率が85%以上
                         popularDayText = "平日中心";
                     } else {
                         popularDayText = "いつでも";
                     }
                 }
 
-                // 月平均利用額 & 月平均利用回数の算出
-                let monthlySpentText = `¥${totalAmount.toLocaleString()}`;
-                let frequencyText = `${count}回`;
-
-                if (earliestTime !== Infinity && latestTime !== Infinity) {
-                    const diffDays = Math.max(1, Math.round((latestTime - earliestTime) / (1000 * 60 * 60 * 24)));
-                    if (diffDays >= 30) {
-                        const months = diffDays / 30.4375;
-                        const monthlySpent = Math.round(totalAmount / months);
-                        monthlySpentText = `¥${monthlySpent.toLocaleString()}`;
-                        const perMonth = (count / months).toFixed(1);
-                        frequencyText = `月 ${parseFloat(perMonth)}回`;
-                    } else if (diffDays >= 7) {
-                        const weeks = diffDays / 7;
-                        const monthlySpentEst = Math.round((totalAmount / weeks) * 4.345);
-                        monthlySpentText = `¥${monthlySpentEst.toLocaleString()}`;
-                        const perWeek = (count / weeks).toFixed(1);
-                        frequencyText = `週 ${parseFloat(perWeek)}回`;
-                    } else {
-                        monthlySpentText = `¥${totalAmount.toLocaleString()}`;
-                        frequencyText = `計 ${count}回`;
-                    }
+                // 月平均利用額 & 月平均利用回数の正確な算出（ユニーク利用月数ベース）
+                const monthsCount = Math.max(1, uniqueMonths.size);
+                const monthlySpent = Math.round(totalAmount / monthsCount);
+                const monthlySpentText = `¥${monthlySpent.toLocaleString()}`;
+                
+                let frequencyText = "";
+                if (monthsCount > 1) {
+                    const perMonth = (count / monthsCount).toFixed(1);
+                    frequencyText = `月 ${parseFloat(perMonth)}回`;
+                } else {
+                    frequencyText = `計 ${count}回`;
                 }
 
                 // 曜日分布ミニバー
@@ -2551,7 +2539,7 @@
                         <!-- 通算情報サブ行 -->
                         <div class="text-[12.5px] font-semibold text-gray-500 mb-4 flex items-center gap-1.5">
                             <span class="inline-block w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                            通算支出: <span class="font-bold text-gray-700">¥${totalAmount.toLocaleString()}</span> （全 ${count}回）
+                            通算支出: <span class="font-bold text-gray-700">¥${totalAmount.toLocaleString()}</span> （全 ${count}回 / ${monthsCount}ヶ月間）
                         </div>
 
                         <!-- 2×2 グリッド指標 -->
