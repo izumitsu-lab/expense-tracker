@@ -2473,17 +2473,20 @@
                     }
                 }
 
-                // 月平均利用額 & 月平均利用回数の正確な算出（初回利用からの経過月数ベース）
+                // 月平均利用額 & 月平均利用回数の正確な算出（そのお店の初回利用日からの経過日数 ÷ 30.4 で月数換算）
                 const sortedDates = shopTxns.map(t => t.date).filter(Boolean).sort();
                 let monthsCount = 1;
                 if (sortedDates.length > 0) {
                     const firstDate = new Date(sortedDates[0]);
+                    firstDate.setHours(0, 0, 0, 0);
                     const today = new Date();
+                    today.setHours(0, 0, 0, 0);
                     if (!isNaN(firstDate.getTime())) {
-                        const elapsed = (today.getFullYear() - firstDate.getFullYear()) * 12 + (today.getMonth() - firstDate.getMonth()) + 1;
-                        monthsCount = Math.max(1, elapsed);
+                        const elapsedDays = Math.round((today - firstDate) / (1000 * 60 * 60 * 24));
+                        monthsCount = Math.max(1, elapsedDays / 30.4);
                     }
                 }
+                const monthsCountText = monthsCount.toFixed(1);
                 const monthlySpent = Math.round(totalAmount / monthsCount);
                 const monthlySpentText = `¥${monthlySpent.toLocaleString()}`;
                 
@@ -2548,7 +2551,7 @@
                         <!-- 通算情報サブ行 -->
                         <div class="text-[12.5px] font-semibold text-gray-500 mb-4 flex items-center gap-1.5">
                             <span class="inline-block w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                            通算支出: <span class="font-bold text-gray-700">¥${totalAmount.toLocaleString()}</span> （全 ${count}回 / ${monthsCount}ヶ月間）
+                            通算支出: <span class="font-bold text-gray-700">¥${totalAmount.toLocaleString()}</span> （全 ${count}回 / ${monthsCountText}ヶ月間）
                         </div>
 
                         <!-- 2×2 グリッド指標 -->
