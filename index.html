@@ -271,9 +271,9 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0 10px;
-            height: 32px;
-            border-radius: 16px;
+            padding: 0 11px;
+            height: 36px;
+            border-radius: 18px;
             background: rgba(0, 122, 255, 0.1);
             color: var(--ios-blue);
             font-size: 13px;
@@ -399,14 +399,14 @@
             </div>
         </div>
 
-        <!-- ==================== FIXED EXPENSES VIEW ==================== -->
+        <!-- ==================== FIXED EXPENSES VIEW (名称を「固定費」に統一) ==================== -->
         <div id="view-fixed" class="view-section overflow-hidden">
             <div class="px-5 pt-6 pb-2 shrink-0">
-                <h1 class="text-[34px] font-bold mb-2 tracking-tight">自動固定費</h1>
+                <h1 class="text-[34px] font-bold mb-2 tracking-tight">固定費</h1>
                 <p class="text-gray-500 text-[13px] mb-6 leading-relaxed">毎月指定した日付に、この画面で設定した支出が<br>自動的に履歴（家計簿）へ追加されます。</p>
                 <button onclick="openFixedEditor(null)" class="w-full py-4 text-[#007AFF] font-bold bg-white rounded-xl shadow-sm mb-4 active:bg-gray-50 text-[16px] flex items-center justify-center gap-2 border border-[rgba(0,0,0,0.03)]">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-                    自動固定費を追加する
+                    固定費を追加する
                 </button>
             </div>
             <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="list-fixed-expenses"></div>
@@ -440,20 +440,23 @@
                 <div class="flex justify-between items-center mb-2.5">
                     <h1 class="text-[32px] font-extrabold tracking-tight text-gray-900 leading-none">履歴</h1>
                     
+                    <!-- ② 右上ボタン順序：今日、カレンダー、並び順 -->
                     <div class="flex items-center gap-2">
-                        <!-- カレンダー内「今日に戻る」ボタン -->
+                        <!-- 今日 -->
                         <button onclick="jumpToToday()" class="today-icon-btn" title="今日の日付に戻る">
                             今日
                         </button>
 
-                        <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg>
-                        </button>
-
+                        <!-- カレンダー -->
                         <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60 shrink-0">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             <input type="date" id="cal-date-picker" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
                         </div>
+
+                        <!-- 並び順 -->
+                        <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                        </button>
                     </div>
                 </div>
 
@@ -716,7 +719,7 @@
                     <div class="ios-item py-4">
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0">金額</span>
                         <div class="flex items-center flex-grow justify-end">
-                            <input type="number" id="inp-amount" class="ios-input text-gray-900 font-bold text-[28px] p-0 h-8">
+                            <input type="number" id="inp-amount" class="ios-input text-gray-900 font-bold text-[28px] p-0 h-8" placeholder="金額を入力">
                             <span class="ml-1 text-gray-500 font-bold text-xl">円</span>
                         </div>
                     </div>
@@ -731,7 +734,6 @@
                     <div class="ios-item flex-col items-start py-3 gap-2.5" id="item-time-container">
                         <div class="w-full flex justify-between items-center">
                             <span class="text-gray-900 font-medium text-[16px] whitespace-nowrap shrink-0">時間</span>
-                            <!-- 青い時間文字：タップするとiOSネイティブドラムロール、Macでも確実に入力起動 -->
                             <div class="relative flex items-center justify-end cursor-pointer py-1 px-2 -mr-2 rounded-lg active:bg-[rgba(0,122,255,0.1)] transition-colors" onclick="triggerNativeTimePicker(event)">
                                 <span id="lbl-display-time" class="text-[#007AFF] font-bold text-[18px] tracking-tight">12:00</span>
                                 <input type="hidden" id="inp-time" value="12:00">
@@ -851,16 +853,24 @@
             </div>
         </div>
 
+        <!-- ③④ 固定費エディター (文言修正＆金額未定チェック対応) -->
         <div id="modal-fixed-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-fixed-editor')">キャンセル</button>
-                <h2 class="font-bold text-[17px]" id="title-fixed-editor">自動固定費の設定</h2>
+                <h2 class="font-bold text-[17px]" id="title-fixed-editor">固定費の設定</h2>
                 <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveFixedEditor()">保存</button>
             </div>
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
-                <div class="ios-list shadow-sm mb-6">
-                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">登録名</span><input type="text" id="fx-name" class="ios-input text-left ml-0" placeholder="例: 家賃"></div>
-                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span><input type="number" id="fx-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000"></div>
+                <div class="ios-list shadow-sm mb-4">
+                    <div class="ios-item"><span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">登録名</span><input type="text" id="fx-name" class="ios-input text-left ml-0" placeholder="例: 家賃、電気代"></div>
+                    <div class="ios-item" id="row-fx-amount">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額</span>
+                        <input type="number" id="fx-amount" class="ios-input text-left ml-0 text-[#007AFF] font-bold" placeholder="80000">
+                    </div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">金額は未定（あとで確定）</span>
+                        <input type="checkbox" id="fx-is-pending" onchange="toggleFixedPending(this.checked)" class="w-5 h-5 accent-[#007AFF] cursor-pointer">
+                    </div>
                     <div class="ios-item">
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">毎月の追加日</span>
                         <div class="flex items-center flex-grow justify-end">
@@ -869,6 +879,7 @@
                         </div>
                     </div>
                 </div>
+
                 <h3 class="text-xs text-gray-500 mb-2 ml-2 font-semibold">自動入力される内容</h3>
                 <div class="ios-list shadow-sm">
                     <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">分類</span><select id="fx-class" class="ios-input bg-transparent" onchange="updateShopSelect('fx-class','fx-shop')" dir="rtl"></select></div>
@@ -1105,7 +1116,8 @@
         let isFlowFromInput = false;
 
         function updateUnsetBadge() {
-            const unsetCount = state.transactions.filter(t => !t.classId && !t.categoryId).length;
+            // 未設定または金額未定の件数をバッジとしてカウント
+            const unsetCount = state.transactions.filter(t => (!t.classId && !t.categoryId) || t.isPending || t.amount === 0).length;
             const badge = document.getElementById('nav-badge-calendar');
             if (!badge) return;
             if (unsetCount > 0) {
@@ -1184,9 +1196,19 @@
                         const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                         const txnId = `fx_${fe.id}_${dateStr}`;
                         if (!state.transactions.find(t => t.id === txnId)) {
+                            const isPending = Boolean(fe.isPending || fe.amount === 0);
                             state.transactions.push({
-                                id: txnId, amount: fe.amount, date: dateStr, time: "09:00",
-                                classId: fe.classId, categoryId: fe.categoryId, shopName: fe.shopName, paymentId: fe.paymentId, memo: fe.memo || '自動追加(固定費)', ts: new Date(`${dateStr}T09:00:00`).getTime() || Date.now()
+                                id: txnId, 
+                                amount: isPending ? 0 : fe.amount, 
+                                isPending: isPending,
+                                date: dateStr, 
+                                time: "09:00",
+                                classId: fe.classId, 
+                                categoryId: fe.categoryId, 
+                                shopName: fe.shopName, 
+                                paymentId: fe.paymentId, 
+                                memo: fe.memo || (isPending ? '固定費 (金額未定)' : '固定費'), 
+                                ts: new Date(`${dateStr}T09:00:00`).getTime() || Date.now()
                             });
                             addedCount++;
                         }
@@ -1195,7 +1217,7 @@
                 currentDate.setDate(currentDate.getDate() + 1);
             }
             state.lastRunDate = todayStr; saveData();
-            if (addedCount > 0) showAlert(`自動固定費が ${addedCount}件 履歴に追加されました。`);
+            if (addedCount > 0) showAlert(`固定費が ${addedCount}件 履歴に追加されました。`);
         }
 
         function showPrompt(title, defaultVal, cb) { document.getElementById('prompt-title').textContent = title; const inp = document.getElementById('prompt-input'); inp.value = defaultVal || ''; document.getElementById('custom-prompt').classList.add('active'); setTimeout(() => inp.focus(), 50); promptCallback = cb; }
@@ -1239,6 +1261,7 @@
         }
 
         function switchView(target, subTarget) {
+            // ① すでに履歴画面にいる状態でメニューの「履歴」がタップされた場合のみ「今日」に戻る
             const isAlreadyInCalendar = (target === 'calendar' && document.getElementById('view-calendar').classList.contains('active'));
             if (isAlreadyInCalendar) {
                 jumpToToday();
@@ -1338,7 +1361,8 @@
             sortedTxns.forEach(t => {
                 const cls = state.shopClasses.find(c => c.id === t.classId) || {name: ''}; const cat = state.categories.find(c => c.id === t.categoryId) || {name: ''}; const pay = state.paymentMethods.find(p => p.id === t.paymentId) || {name: ''};
                 const timeStr = t.time || formatTimeFromTs(t.ts);
-                const row = [t.date, timeStr, cls.name, cat.name, t.shopName, pay.name, t.amount, t.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
+                const amtStr = t.isPending || t.amount === 0 ? "未定" : t.amount;
+                const row = [t.date, timeStr, cls.name, cat.name, t.shopName, pay.name, amtStr, t.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
             });
             await shareFile(csvContent, `家計簿データ_${new Date().toISOString().split('T')[0]}.csv`, "text/csv;charset=utf-8;");
         };
@@ -1420,7 +1444,7 @@
             
             const now = new Date();
             const todayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-            const nowTime = formatExactTime(now); // 1分単位で記録
+            const nowTime = formatExactTime(now);
             
             state.transactions.push({ 
                 id: generateId(), 
@@ -1546,7 +1570,6 @@
             if (!container) return;
             container.innerHTML = '';
 
-            // 1. 「現在」ボタンを一番左に配置 (1分単位の現在時刻をセット)
             const exactNow = formatExactTime(new Date());
             const isNowSelected = isSelected && (currentTimeSlotMode === 'now');
             const nowBtn = document.createElement('button');
@@ -1556,7 +1579,6 @@
             nowBtn.onclick = () => selectTimeSlot(formatExactTime(new Date()), 'now');
             container.appendChild(nowBtn);
 
-            // 2. 朝、昼、夜などのプリセットピル
             const slots = state.timeSlots && state.timeSlots.length > 0 ? state.timeSlots : DEFAULT_STATE.timeSlots;
             let matchedSlot = false;
 
@@ -1571,7 +1593,6 @@
                 container.appendChild(btn);
             });
 
-            // 3. 30分単位ボトムシート呼び出しボタン
             const isCustomSelected = isSelected && (currentTimeSlotMode === 'custom' || (!matchedSlot && !isNowSelected && activeTime));
             const customBtn = document.createElement('button');
             customBtn.type = 'button';
@@ -1580,7 +1601,6 @@
             customBtn.onclick = () => openTimePickerSheet();
             container.appendChild(customBtn);
 
-            // ラベル・inputの更新
             const timeInp = document.getElementById('inp-time');
             const dispLbl = document.getElementById('lbl-display-time');
             const minutePicker = document.getElementById('inp-native-minute-picker');
@@ -1602,7 +1622,6 @@
             renderTimePills(timeVal, true);
         }
 
-        // 青い時間の文字をタップして1分単位ピッカーで変更されたとき
         function onMinutePickerChanged(newTimeStr) {
             if (!newTimeStr) return;
             const matchSlot = state.timeSlots.find(s => s.time === newTimeStr);
@@ -1610,23 +1629,17 @@
             renderTimePills(newTimeStr, true);
         }
 
-        // Mac/PCでも確実にピッカーを立ち上げるトリガー
         function triggerNativeTimePicker(e) {
             const picker = document.getElementById('inp-native-minute-picker');
             if (!picker) return;
 
-            // ブラウザ標準のshowPicker APIに対応している場合は実行 (Mac Chrome/Safariなど)
             if (typeof picker.showPicker === 'function') {
                 try {
                     picker.showPicker();
                     return;
-                } catch (err) {
-                    // showPicker失敗時はフォールバック
-                }
+                } catch (err) {}
             }
 
-            // showPicker非対応環境でクリックが透過しなかった場合のフォールバック:
-            // モバイル以外(Mac等)で時間未変更ならプロンプトまたは30分刻みシートを起動
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
             if (!isIOS) {
                 const currentVal = document.getElementById('inp-time').value || formatExactTime(new Date());
@@ -1652,7 +1665,6 @@
             renderTimePills('', false);
         }
 
-        /* 30分刻みボトムシート */
         function openTimePickerSheet() {
             const grid = document.getElementById('grid-30m-times');
             grid.innerHTML = '';
@@ -1694,7 +1706,7 @@
 
             if (editingTxnId) {
                 title.textContent = '編集'; delBox.classList.remove('hidden'); delBox.classList.add('block');
-                document.getElementById('inp-amount').value = txnToEdit.amount; 
+                document.getElementById('inp-amount').value = (txnToEdit.isPending || txnToEdit.amount === 0) ? "" : txnToEdit.amount; 
                 document.getElementById('inp-date').value = txnToEdit.date;
                 initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : formatExactTime(now));
                 
@@ -1733,10 +1745,18 @@
 
         function saveTransaction() {
             const rawAmt = document.getElementById('inp-amount').value;
-            const amt = parseInt(rawAmt, 10); 
+            let amt = parseInt(rawAmt, 10);
+            let isPending = false;
+
             if (isNaN(amt) || amt <= 0) {
-                showAlert("金額を1円以上で入力してください");
-                return;
+                // 既存の取引が未定だった場合、または金額空欄保存を許容する場合
+                if (editingTxnId) {
+                    amt = 0;
+                    isPending = true;
+                } else {
+                    showAlert("金額を1円以上で入力してください");
+                    return;
+                }
             }
             const dateVal = document.getElementById('inp-date').value;
             if (!dateVal) {
@@ -1755,6 +1775,7 @@
             const newTxn = { 
                 id: editingTxnId || generateId(), 
                 amount: amt, 
+                isPending: isPending,
                 date: dateVal, 
                 time: timeVal,
                 classId: document.getElementById('inp-class').value, 
@@ -1770,7 +1791,19 @@
             } else { 
                 state.transactions.push(newTxn); 
             }
-            saveData(); closeAllModals(); resetMainView(); switchView('calendar');
+            saveData(); 
+            closeAllModals(); 
+            resetMainView(); 
+
+            // ① 日付変更時に今日へ強制ジャンプしないよう、変更した日付を表示してカレンダーを更新
+            calCurrentDate = new Date(dateVal);
+            calCurrentDate.setHours(0,0,0,0);
+            
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-calendar').classList.add('active');
+            updateNavColors('calendar');
+            updateFilterButtonsUI();
+            renderCalendar();
         }
 
         function deleteTransaction() { showConfirm("この記録を削除しますか？", () => { state.transactions = state.transactions.filter(t => t.id !== editingTxnId); saveData(); closeAllModals(); renderCalendar(); }); }
@@ -1988,7 +2021,7 @@
                 filtered = state.transactions.filter(t => t.date.startsWith(monthPrefix)); 
                 periodLabel = `${y}年${m+1}月`; 
             }
-            else if (calTab === 'yearly') {
+            else if (calTab === 'yearly') { 
                 const yearPrefix = `${y}-`;
                 filtered = state.transactions.filter(t => t.date.startsWith(yearPrefix)); 
                 periodLabel = `${y}年`; 
@@ -2045,16 +2078,30 @@
                     const dt = new Date(t.date); 
                     const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; 
                     const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'};
+                    
                     const isUnset = !t.classId && !t.categoryId;
+                    const isPending = Boolean(t.isPending || t.amount === 0);
+
                     const displayTitle = isUnset ? '未設定' : (t.shopName || catObj.name);
-                    const titleClass = isUnset ? 'text-[#FF3B30]' : 'text-gray-900';
-                    const subText = isUnset ? '<span class="bg-[#FF3B30] text-white text-[9px] px-1 py-[2px] rounded-[4px] font-bold mr-1 leading-none inline-flex items-center">要編集</span>' : `${escapeHTML(catObj.name)} ${t.memo ? '・'+escapeHTML(t.memo) : ''}`;
+                    const titleClass = (isUnset || isPending) ? 'text-[#FF3B30]' : 'text-gray-900';
+
+                    let badgeHtml = '';
+                    if (isPending) {
+                        badgeHtml = '<span class="bg-[#FF3B30] text-white text-[9px] px-1 py-[2px] rounded-[4px] font-bold mr-1 leading-none inline-flex items-center">金額未定</span>';
+                    } else if (isUnset) {
+                        badgeHtml = '<span class="bg-[#FF3B30] text-white text-[9px] px-1 py-[2px] rounded-[4px] font-bold mr-1 leading-none inline-flex items-center">要編集</span>';
+                    }
+
+                    const subText = `${badgeHtml}${escapeHTML(catObj.name)} ${t.memo ? '・'+escapeHTML(t.memo) : ''}`;
                     const div = document.createElement('div'); 
                     div.className = 'ios-item clickable cursor-pointer'; 
                     div.onclick = () => openDetailModal(null, t);
                     
                     const dateSubLabel = (calTab === 'yearly' || calSortType.startsWith('amt')) ? `${dt.getMonth()+1}/${dt.getDate()}` : dt.getDate();
                     const timeStr = t.time || formatTimeFromTs(t.ts);
+
+                    // ④ 金額未定の場合は「未定」と表示
+                    const amountDisplay = isPending ? '<span class="text-[#FF3B30] font-bold text-[17px]">未定</span>' : `¥${t.amount.toLocaleString()}`;
 
                     div.innerHTML = `
                         <div class="flex items-center gap-3 w-2/3">
@@ -2069,7 +2116,7 @@
                             </div>
                         </div>
                         <div class="flex flex-col items-end shrink-0">
-                            <span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span>
+                            <span class="font-bold text-[18px] text-gray-900 tracking-tight">${amountDisplay}</span>
                             <span class="text-[10px] text-[#007AFF] mt-0.5">${escapeHTML(payObj.name)}</span>
                         </div>
                     `;
@@ -2120,33 +2167,51 @@
             document.getElementById('modal-stats-detail').classList.add('active');
         };
 
+        // ③ 固定費一覧レンダリング
         function renderFixedExpenses() {
             const list = document.getElementById('list-fixed-expenses'); list.innerHTML = '';
-            if (!state.fixedExpenses || state.fixedExpenses.length === 0) { list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium text-[14px]">登録された自動固定費はありません</div>`; return; }
+            if (!state.fixedExpenses || state.fixedExpenses.length === 0) { list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium text-[14px]">登録された固定費はありません</div>`; return; }
             const sorted = [...state.fixedExpenses].sort((a,b) => a.day - b.day); const containerDiv = document.createElement('div'); containerDiv.className = 'ios-list shadow-sm';
             sorted.forEach(fe => {
                 const cls = state.shopClasses.find(c => c.id === fe.classId) || { icon: '📦' }; const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openFixedEditor(fe.id);
-                div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-[46px] shrink-0 bg-[#F2F2F7] rounded-lg py-1.5"><span class="text-[10px] text-gray-500 font-bold uppercase leading-none">毎月</span><span class="text-[16px] font-bold text-gray-900 leading-none mt-1">${fe.day}日</span></div><div class="flex flex-col overflow-hidden w-full pl-1"><span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${escapeHTML(fe.name)}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate">${escapeHTML(cls.icon)} ${escapeHTML(fe.shopName || 'お店未指定')}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${fe.amount.toLocaleString()}</span></div>`;
+                const isPending = Boolean(fe.isPending || fe.amount === 0);
+                const amtLabel = isPending ? '<span class="text-[#FF3B30] font-bold text-[17px]">未定</span>' : `¥${fe.amount.toLocaleString()}`;
+                
+                div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-[46px] shrink-0 bg-[#F2F2F7] rounded-lg py-1.5"><span class="text-[10px] text-gray-500 font-bold uppercase leading-none">毎月</span><span class="text-[16px] font-bold text-gray-900 leading-none mt-1">${fe.day}日</span></div><div class="flex flex-col overflow-hidden w-full pl-1"><span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${escapeHTML(fe.name)}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate">${escapeHTML(cls.icon)} ${escapeHTML(fe.shopName || 'お店未指定')}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">${amtLabel}</span></div>`;
                 containerDiv.appendChild(div);
             });
             list.appendChild(containerDiv);
         }
 
+        // ③④ 固定費エディター
         window.openFixedEditor = (id = null) => {
-            editingFixedId = id; document.getElementById('title-fixed-editor').textContent = id ? '自動固定費の編集' : '新しい自動固定費'; 
-            populateSelect('fx-class', state.shopClasses, null); populateSelect('fx-cat', state.categories, null); populateSelect('fx-pay', state.paymentMethods, null);
+            editingFixedId = id; 
+            document.getElementById('title-fixed-editor').textContent = id ? '固定費の編集' : '新しい固定費'; 
+            populateSelect('fx-class', state.shopClasses, null); 
+            populateSelect('fx-cat', state.categories, null); 
+            populateSelect('fx-pay', state.paymentMethods, null);
             const delBox = document.getElementById('box-delete-fixed');
             
             if (id && typeof id === 'string') {
                 delBox.classList.remove('hidden'); delBox.classList.add('block'); const s = state.fixedExpenses.find(x => x.id === id);
                 if(s) { 
-                    document.getElementById('fx-name').value = s.name; document.getElementById('fx-amount').value = s.amount; document.getElementById('fx-day').value = s.day; 
+                    document.getElementById('fx-name').value = s.name; 
+                    const isPending = Boolean(s.isPending || s.amount === 0);
+                    document.getElementById('fx-is-pending').checked = isPending;
+                    toggleFixedPending(isPending);
+                    document.getElementById('fx-amount').value = isPending ? "" : s.amount; 
+                    document.getElementById('fx-day').value = s.day; 
                     document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', s.shopName); 
                     document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || ''; 
                 }
             } else {
                 editingFixedId = null; delBox.classList.add('hidden'); delBox.classList.remove('block');
-                document.getElementById('fx-name').value = ""; document.getElementById('fx-amount').value = ""; document.getElementById('fx-day').value = "1"; document.getElementById('fx-memo').value = "";
+                document.getElementById('fx-name').value = ""; 
+                document.getElementById('fx-is-pending').checked = false;
+                toggleFixedPending(false);
+                document.getElementById('fx-amount').value = ""; 
+                document.getElementById('fx-day').value = "1"; 
+                document.getElementById('fx-memo').value = "";
                 if(state.shopClasses.length > 0) document.getElementById('fx-class').value = state.shopClasses[0].id; 
                 if(state.categories.length > 0) document.getElementById('fx-cat').value = state.categories[0].id; 
                 if(state.paymentMethods.length > 0) document.getElementById('fx-pay').value = state.paymentMethods[0].id;
@@ -2155,26 +2220,88 @@
             document.getElementById('modal-fixed-editor').classList.add('active');
         };
 
+        window.toggleFixedPending = (isPending) => {
+            const rowAmt = document.getElementById('row-fx-amount');
+            const amtInp = document.getElementById('fx-amount');
+            if (isPending) {
+                rowAmt.style.opacity = '0.35';
+                amtInp.disabled = true;
+                amtInp.placeholder = '未定';
+            } else {
+                rowAmt.style.opacity = '1';
+                amtInp.disabled = false;
+                amtInp.placeholder = '80000';
+            }
+        };
+
         window.saveFixedEditor = () => {
-            const name = document.getElementById('fx-name').value.trim(); const amt = parseInt(document.getElementById('fx-amount').value, 10); const day = parseInt(document.getElementById('fx-day').value, 10);
+            const name = document.getElementById('fx-name').value.trim(); 
+            const isPending = document.getElementById('fx-is-pending').checked;
+            let amt = parseInt(document.getElementById('fx-amount').value, 10); 
+            const day = parseInt(document.getElementById('fx-day').value, 10);
+
             if (!name) { showAlert("登録名を入力してください"); return; }
-            if (isNaN(amt) || amt <= 0) { showAlert("正しい金額を入力してください"); return; }
+            if (!isPending && (isNaN(amt) || amt <= 0)) { 
+                showAlert("金額を入力するか、「金額は未定」にチェックを入れてください"); 
+                return; 
+            }
+            if (isPending) amt = 0;
             if (isNaN(day) || day < 1 || day > 31) { showAlert("日付は1日〜31日の間で入力してください"); return; }
+            
             const shopNameVal = document.getElementById('fx-shop').value;
-            const newFE = { id: editingFixedId || generateId(), name: name, amount: amt, day: day, classId: document.getElementById('fx-class').value, categoryId: document.getElementById('fx-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('fx-pay').value, memo: document.getElementById('fx-memo').value.trim() };
-            if (editingFixedId) { const idx = state.fixedExpenses.findIndex(x => x.id === editingFixedId); if(idx > -1) state.fixedExpenses[idx] = newFE; } else { state.fixedExpenses.push(newFE); }
+            const newFE = { 
+                id: editingFixedId || generateId(), 
+                name: name, 
+                amount: amt, 
+                isPending: isPending,
+                day: day, 
+                classId: document.getElementById('fx-class').value, 
+                categoryId: document.getElementById('fx-cat').value, 
+                shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, 
+                paymentId: document.getElementById('fx-pay').value, 
+                memo: document.getElementById('fx-memo').value.trim() 
+            };
+            if (editingFixedId) { 
+                const idx = state.fixedExpenses.findIndex(x => x.id === editingFixedId); 
+                if(idx > -1) state.fixedExpenses[idx] = newFE; 
+            } else { 
+                state.fixedExpenses.push(newFE); 
+            }
             saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses();
         };
 
-        window.deleteFixedExpense = () => { showConfirm("この自動固定費を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
+        window.deleteFixedExpense = () => { showConfirm("この固定費を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
 
         window.manualAddFixed = () => {
-            const name = document.getElementById('fx-name').value.trim(); const amt = parseInt(document.getElementById('fx-amount').value, 10); const classId = document.getElementById('fx-class').value; const catId = document.getElementById('fx-cat').value; const shopName = document.getElementById('fx-shop').value; const paymentId = document.getElementById('fx-pay').value; const memo = document.getElementById('fx-memo').value.trim();
-            if (!name || isNaN(amt) || amt <= 0) { showAlert("登録名と正しい金額を入力してください"); return; }
+            const name = document.getElementById('fx-name').value.trim(); 
+            const isPending = document.getElementById('fx-is-pending').checked;
+            let amt = parseInt(document.getElementById('fx-amount').value, 10); 
+            const classId = document.getElementById('fx-class').value; 
+            const catId = document.getElementById('fx-cat').value; 
+            const shopName = document.getElementById('fx-shop').value; 
+            const paymentId = document.getElementById('fx-pay').value; 
+            const memo = document.getElementById('fx-memo').value.trim();
+
+            if (!name) { showAlert("登録名を入力してください"); return; }
+            if (!isPending && (isNaN(amt) || amt <= 0)) { showAlert("金額を入力するか「金額は未定」にチェックしてください"); return; }
+            if (isPending) amt = 0;
+
             const d = new Date(); const defaultDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             showDatePrompt(defaultDate, (selectedDate) => {
                 if(!selectedDate) return;
-                state.transactions.push({ id: generateId(), amount: amt, date: selectedDate, time: "09:00", classId: classId, categoryId: catId, shopName: shopName === 'ADD_NEW' ? '' : shopName, paymentId: paymentId, memo: memo, ts: new Date(`${selectedDate}T09:00:00`).getTime() || Date.now() });
+                state.transactions.push({ 
+                    id: generateId(), 
+                    amount: amt, 
+                    isPending: isPending,
+                    date: selectedDate, 
+                    time: "09:00", 
+                    classId: classId, 
+                    categoryId: catId, 
+                    shopName: shopName === 'ADD_NEW' ? '' : shopName, 
+                    paymentId: paymentId, 
+                    memo: memo || (isPending ? '固定費 (金額未定)' : '固定費'), 
+                    ts: new Date(`${selectedDate}T09:00:00`).getTime() || Date.now() 
+                });
                 saveData(); showAlert(`${selectedDate} に追加しました`); closeModal('modal-fixed-editor'); renderFixedExpenses();
             });
         };
