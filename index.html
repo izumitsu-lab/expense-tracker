@@ -100,7 +100,6 @@
         }
         .modal-sheet.active { transform: translateY(0); }
 
-        /* ボトムアクションシート (フィルター & 並び替え用) */
         .action-sheet-backdrop {
             position: absolute;
             inset: 0;
@@ -120,7 +119,7 @@
             left: 0;
             width: 100%;
             max-height: 75vh;
-            background: rgba(255, 255, 255, 0.94);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(25px);
             -webkit-backdrop-filter: blur(25px);
             border-top-left-radius: 20px;
@@ -225,7 +224,6 @@
 
         .hidden-gate { display: none !important; }
 
-        /* フィルターピルボタン */
         .filter-pill {
             display: inline-flex;
             align-items: center;
@@ -244,21 +242,15 @@
             max-width: 110px;
             shrink-0: 0;
         }
-        .filter-pill:active {
-            transform: scale(0.95);
-            background: #F2F2F7;
-        }
+        .filter-pill:active { transform: scale(0.95); background: #F2F2F7; }
         .filter-pill.active {
             background: var(--ios-blue);
             color: #FFFFFF;
             border-color: var(--ios-blue);
             box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35);
         }
-        .filter-pill.active svg {
-            color: #FFFFFF;
-        }
+        .filter-pill.active svg { color: #FFFFFF; }
 
-        /* 小型並び替えアイコンボタン (カレンダーの左) */
         .sort-icon-btn {
             display: inline-flex;
             align-items: center;
@@ -272,13 +264,63 @@
             cursor: pointer;
             user-select: none;
         }
-        .sort-icon-btn:active {
-            transform: scale(0.92);
-            background: rgba(142, 142, 147, 0.22);
+        .sort-icon-btn:active { transform: scale(0.92); background: rgba(142, 142, 147, 0.22); }
+        .sort-icon-btn.active { background: rgba(0, 122, 255, 0.15); color: var(--ios-blue); }
+
+        /* 時間帯ピルボタン (時刻表記なし・ミニマルデザイン) */
+        .time-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 7px 15px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            background: rgba(142, 142, 147, 0.12);
+            color: #1C1C1E;
+            transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
-        .sort-icon-btn.active {
-            background: rgba(0, 122, 255, 0.15);
-            color: var(--ios-blue);
+        .time-pill:active { transform: scale(0.94); background: rgba(142, 142, 147, 0.22); }
+        .time-pill.active {
+            background: var(--ios-blue);
+            color: #FFFFFF;
+            box-shadow: 0 3px 10px rgba(0, 122, 255, 0.35);
+        }
+
+        /* 30分刻みグリッドボタン */
+        .time-grid-btn {
+            padding: 11px 0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            background: rgba(142, 142, 147, 0.12);
+            color: #1C1C1E;
+            transition: all 0.12s ease-out;
+            text-align: center;
+            user-select: none;
+            cursor: pointer;
+        }
+        .time-grid-btn:active {
+            transform: scale(0.94);
+            background: rgba(142, 142, 147, 0.25);
+        }
+        .time-grid-btn.active {
+            background: var(--ios-blue);
+            color: #FFFFFF;
+            box-shadow: 0 3px 10px rgba(0, 122, 255, 0.35);
+        }
+
+        @keyframes pillAreaPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        .pulse-focus {
+            animation: pillAreaPulse 0.28s ease-out;
         }
     </style>
 </head>
@@ -377,17 +419,14 @@
         <!-- ==================== CALENDAR / HISTORY VIEW ==================== -->
         <div id="view-calendar" class="view-section overflow-hidden">
             <div class="px-4 pb-2 pt-4 flex-shrink-0">
-                <!-- 1行目: 「履歴」(大見出し) ＋ 右側に「並び替えアイコン」＋「カレンダーボタン」 -->
                 <div class="flex justify-between items-center mb-2.5">
                     <h1 class="text-[32px] font-extrabold tracking-tight text-gray-900 leading-none">履歴</h1>
                     
                     <div class="flex items-center gap-2">
-                        <!-- 並び替えアイコン (カレンダーの左) -->
                         <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg>
                         </button>
 
-                        <!-- カレンダーピッカーボタン -->
                         <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60 shrink-0">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             <input type="date" id="cal-date-picker" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
@@ -395,9 +434,7 @@
                     </div>
                 </div>
 
-                <!-- 2行目: 検索窓 (絞り込みの左) ＋ 絞り込みボタン (カテゴリー・支払い) -->
                 <div class="flex items-center gap-2 mb-2.5">
-                    <!-- 検索窓 -->
                     <div class="relative flex-1 flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5 transition-colors focus-within:bg-[rgba(142,142,147,0.18)] min-w-0">
                         <svg class="w-3.5 h-3.5 text-gray-400 shrink-0 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="店名・メモ等で検索" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
@@ -406,7 +443,6 @@
                         </button>
                     </div>
 
-                    <!-- 絞り込みボタン列 -->
                     <div class="flex items-center gap-1.5 shrink-0">
                         <button id="btn-filter-cat" onclick="openFilterSheet('cat')" class="filter-pill">
                             <span id="lbl-filter-cat" class="truncate">カテゴリー</span>
@@ -418,14 +454,12 @@
                             <svg class="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
 
-                        <!-- リセットボタン -->
                         <button id="btn-filter-reset" onclick="resetAllFilters()" class="text-[11.5px] font-semibold text-[#007AFF] active:opacity-60 hidden px-1 shrink-0">
                             解除
                         </button>
                     </div>
                 </div>
 
-                <!-- セグメントスイッチ (Daily / Weekly / Monthly / Yearly) -->
                 <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[8px] p-[2px] mb-2 w-full relative">
                     <div id="cal-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[6px] shadow-[0_2px_6px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-out w-[calc(25%-2px)] left-[2px]"></div>
                     <div class="flex-1 text-center py-1 text-[12px] font-semibold text-black z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('daily', 0)">Daily</div>
@@ -434,7 +468,6 @@
                     <div class="flex-1 text-center py-1 text-[12px] font-semibold text-gray-500 z-10 cursor-pointer cal-seg-btn" onclick="setCalTab('yearly', 3)">Yearly</div>
                 </div>
 
-                <!-- 日付ナビ・合計金額表示 -->
                 <div class="flex justify-between items-center mb-1">
                     <button onclick="shiftDate(-1)" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
                     <div class="flex items-baseline gap-2">
@@ -445,7 +478,6 @@
                 </div>
             </div>
 
-            <!-- 履歴一覧領域 -->
             <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="cal-content">
                 <div class="ios-list" id="list-expenses"></div>
             </div>
@@ -471,6 +503,7 @@
                 
                 <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">入力・お店</h2>
                 <div class="ios-list">
+                    <div class="ios-item clickable" onclick="openPanel('panel-time-slots')"><span class="font-medium">時間帯（朝・昼・夜）の設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-shortcuts')"><span class="font-medium">クイック入力 (スワイプ画面)</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     <div class="ios-item clickable" onclick="openPanel('panel-shops')"><span class="font-medium">お店リストと詳細設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
@@ -494,7 +527,6 @@
                 <div class="w-1/3"></div>
             </div>
             <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
-
                 <div id="sync-panel-signedout">
                     <p class="text-[13px] text-gray-500 leading-relaxed mt-5 mb-6 px-1">
                         Googleアカウントでログインすると、iPhoneとMacの間でこの家計簿が自動的に同期されます。<br><br>
@@ -515,7 +547,18 @@
                     </div>
                     <button class="w-full py-4 text-[#FF3B30] font-bold bg-white rounded-xl shadow-sm active:bg-red-50 text-[15px] border border-[rgba(255,59,48,0.15)]" onclick="showConfirm('ログアウトすると、この端末は自動で同期されなくなります。よろしいですか？', () => doSignOut())">ログアウトして同期を止める</button>
                 </div>
+            </div>
+        </div>
 
+        <div id="panel-time-slots" class="slide-panel">
+            <div class="px-4 flex items-center mb-4 pb-3 border-b border-[rgba(60,60,67,0.1)] shrink-0 pt-3">
+                <button class="text-[#007AFF] text-[17px] font-medium flex items-center gap-1 active:opacity-60 w-1/3" onclick="closePanel('panel-time-slots')"><span class="text-2xl leading-none -mt-1">‹</span> 設定</button>
+                <h2 class="font-bold text-[17px] text-center w-1/3 whitespace-nowrap">時間帯の設定</h2>
+                <div class="w-1/3 text-right"><button class="text-[#007AFF] text-[17px] active:opacity-60" onclick="openTimeSlotModal(null)">追加</button></div>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
+                <p class="text-xs text-gray-500 mb-3 ml-2">朝・昼・夜などのデフォルト時間を設定できます。<br>入力画面でワンタップで指定できるようになります。</p>
+                <div class="ios-list" id="list-set-time-slots"></div>
             </div>
         </div>
 
@@ -590,7 +633,7 @@
             </div>
         </div>
 
-        <!-- ==================== ACTION SHEET (フィルター & ソート用ポップアップ) ==================== -->
+        <!-- ==================== ACTION SHEET (フィルター & 並び替え用) ==================== -->
         <div id="sheet-backdrop" class="action-sheet-backdrop" onclick="closeFilterSheet()"></div>
         <div id="filter-sheet" class="action-sheet">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-2.5 mb-1 shrink-0"></div>
@@ -600,6 +643,20 @@
                 <button id="sheet-reset-btn" class="text-[#007AFF] text-[16px] font-semibold active:opacity-60" onclick="applySheetFilter(null)">リセット</button>
             </div>
             <div class="flex-1 overflow-y-auto no-scrollbar py-2" id="sheet-list"></div>
+        </div>
+
+        <!-- ==================== 30分刻み 時間選択ボトムシート ==================== -->
+        <div id="sheet-time-backdrop" class="action-sheet-backdrop" onclick="closeTimePickerSheet()"></div>
+        <div id="sheet-time-picker" class="action-sheet">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-2.5 mb-1 shrink-0"></div>
+            <div class="px-5 py-3 flex items-center justify-between border-b border-[rgba(60,60,67,0.1)] shrink-0">
+                <button class="text-[#007AFF] text-[16px] font-medium active:opacity-60" onclick="closeTimePickerSheet()">閉じる</button>
+                <h3 class="font-bold text-[17px] text-gray-900 text-center">時間を選択 (30分単位)</h3>
+                <div class="w-12"></div>
+            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar p-4" style="max-height: 60vh;">
+                <div class="grid grid-cols-4 gap-2" id="grid-30m-times"></div>
+            </div>
         </div>
 
         <!-- ==================== MODALS ==================== -->
@@ -624,6 +681,7 @@
             </div>
         </div>
 
+        <!-- 詳細確認モーダル (現在は一番左、表記なしピル) -->
         <div id="modal-detail" class="modal-sheet bg-[#F2F2F7] z-[70]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-detail')">キャンセル</button>
@@ -641,7 +699,25 @@
                     </div>
                 </div>
                 <div class="ios-list shadow-sm shrink-0 mb-6">
-                    <div class="ios-item"><span class="w-24 text-gray-900 font-medium">日付</span><input type="date" id="inp-date" class="ios-input font-medium"></div>
+                    <div class="ios-item">
+                        <span class="w-24 text-gray-900 font-medium">日付</span>
+                        <input type="date" id="inp-date" onchange="onDateInputChange(this.value)" class="ios-input font-medium cursor-pointer">
+                    </div>
+                    
+                    <!-- 朝・昼・夜・30分単位ピルUI (シンプル表記) -->
+                    <div class="ios-item flex-col items-start py-3 gap-2.5" id="item-time-container">
+                        <div class="w-full flex justify-between items-center">
+                            <span class="text-gray-900 font-medium text-[16px]">時間</span>
+                            <div class="flex items-center gap-1.5">
+                                <span id="lbl-display-time" class="text-[#007AFF] font-bold text-[17px] tracking-tight">12:00</span>
+                                <input type="hidden" id="inp-time" value="12:00">
+                            </div>
+                        </div>
+
+                        <!-- 時間帯ピル群 (現在が先頭、時間表記なし) -->
+                        <div class="w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="container-time-pills"></div>
+                    </div>
+
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">分類</span><select id="inp-class" class="ios-input appearance-none bg-transparent" onchange="updateShopSelect('inp-class','inp-shop')" dir="rtl"></select></div>
                     <div class="ios-item"><span class="w-24 text-gray-900 font-medium">カテゴリー</span><select id="inp-cat" class="ios-input appearance-none bg-transparent" dir="rtl"></select></div>
                     
@@ -663,6 +739,30 @@
                 </div>
                 <div class="mt-auto pt-4 shrink-0 pb-[30px]">
                     <button onclick="saveTransaction()" class="w-full py-[18px] bg-[#007AFF] text-white rounded-[18px] text-[20px] font-bold shadow-[0_8px_24px_rgba(0,122,255,0.35)] transition-transform active:scale-95 flex items-center justify-center gap-2 tracking-wide">保存する</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 時間帯編集モーダル -->
+        <div id="modal-timeslot-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
+            <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
+                <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-timeslot-editor')">キャンセル</button>
+                <h2 class="font-bold text-[17px]" id="title-timeslot-editor">時間帯の設定</h2>
+                <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveTimeSlotEditor()">完了</button>
+            </div>
+            <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
+                <div class="ios-list shadow-sm">
+                    <div class="ios-item">
+                        <span class="w-24 text-gray-900">名称</span>
+                        <input type="text" id="ed-ts-name" class="ios-input text-left ml-0" placeholder="例: 朝、昼、夜、深夜">
+                    </div>
+                    <div class="ios-item">
+                        <span class="w-24 text-gray-900">時刻</span>
+                        <input type="time" id="ed-ts-time" class="ios-input text-right font-bold text-[#007AFF] text-[18px]">
+                    </div>
+                </div>
+                <div id="box-delete-timeslot" class="mt-6 hidden">
+                    <button class="w-full py-4 text-[#FF3B30] font-bold bg-white rounded-xl shadow-sm active:bg-red-50 text-[16px] border border-[rgba(255,59,48,0.2)]" onclick="deleteTimeSlot()">この時間帯を削除</button>
                 </div>
             </div>
         </div>
@@ -826,9 +926,28 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
+
+        // ==================== 時刻ユーティリティ ====================
+        function roundToHalfHour(date = new Date()) {
+            const minutes = date.getMinutes();
+            const m = (Math.round(minutes / 30) * 30) % 60;
+            const h = (minutes >= 45 ? date.getHours() + 1 : date.getHours()) % 24;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function formatTimeFromTs(ts) {
+            if (!ts) return "12:00";
+            const d = new Date(ts);
+            return isNaN(d.getTime()) ? "12:00" : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
         
         const DEFAULT_STATE = {
           "transactions": [],
+          "timeSlots": [
+            { "id": "ts_morn", "name": "朝", "time": "09:00" },
+            { "id": "ts_noon", "name": "昼", "time": "12:00" },
+            { "id": "ts_night", "name": "夜", "time": "19:00" }
+          ],
           "shopClasses": [
             { "id": "sc1", "name": "コンビニ", "icon": "🏪" },
             { "id": "sc2", "name": "スーパー", "icon": "🛒" },
@@ -924,16 +1043,16 @@
         let editingShopId = null;
         let editingShortcutId = null;
         let editingFixedId = null;
+        let editingTimeSlotId = null;
         
         let calTab = 'daily';
         let calCurrentDate = new Date(); calCurrentDate.setHours(0,0,0,0);
 
-        // 検索・フィルター・並び替え状態
         let calSearchQuery = '';
         let calSelectedCatId = null;
         let calSelectedPayId = null;
-        let calSortType = 'date_desc'; // 'date_desc' | 'date_asc' | 'amt_desc' | 'amt_asc'
-        let currentSheetType = null;   // 'cat' | 'pay' | 'sort'
+        let calSortType = 'date_desc';
+        let currentSheetType = null;
 
         let statsTab = 'monthly';
         let statsCurrentDate = new Date(); statsCurrentDate.setHours(0,0,0,0);
@@ -966,6 +1085,7 @@
                 if (stored) {
                     const parsed = JSON.parse(stored);
                     state.transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+                    state.timeSlots = Array.isArray(parsed.timeSlots) && parsed.timeSlots.length > 0 ? parsed.timeSlots : DEFAULT_STATE.timeSlots;
                     state.shopClasses = Array.isArray(parsed.shopClasses) ? parsed.shopClasses : DEFAULT_STATE.shopClasses;
                     state.categories = Array.isArray(parsed.categories) ? parsed.categories : DEFAULT_STATE.categories;
                     state.paymentMethods = Array.isArray(parsed.paymentMethods) ? parsed.paymentMethods : DEFAULT_STATE.paymentMethods;
@@ -977,6 +1097,9 @@
             } catch (e) {
                 console.error("Local load failed", e);
                 showAlert("端末内データの読み込みでエラーが発生しました。");
+            }
+            if (!state.timeSlots || state.timeSlots.length === 0) {
+                state.timeSlots = JSON.parse(JSON.stringify(DEFAULT_STATE.timeSlots));
             }
             processFixedExpenses(); 
             updateUnsetBadge();
@@ -1021,8 +1144,8 @@
                         const txnId = `fx_${fe.id}_${dateStr}`;
                         if (!state.transactions.find(t => t.id === txnId)) {
                             state.transactions.push({
-                                id: txnId, amount: fe.amount, date: dateStr,
-                                classId: fe.classId, categoryId: fe.categoryId, shopName: fe.shopName, paymentId: fe.paymentId, memo: fe.memo || '自動追加(固定費)', ts: Date.now()
+                                id: txnId, amount: fe.amount, date: dateStr, time: "09:00",
+                                classId: fe.classId, categoryId: fe.categoryId, shopName: fe.shopName, paymentId: fe.paymentId, memo: fe.memo || '自動追加(固定費)', ts: new Date(`${dateStr}T09:00:00`).getTime() || Date.now()
                             });
                             addedCount++;
                         }
@@ -1046,6 +1169,7 @@
         function closeAllModals() { 
             document.querySelectorAll('.modal-sheet').forEach(m => m.classList.remove('active')); 
             closeFilterSheet();
+            closeTimePickerSheet();
         }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function openPanel(id) { document.getElementById(id).classList.add('active'); renderPanelLists(); }
@@ -1146,11 +1270,12 @@
         }
 
         window.exportCSV = async () => {
-            let csvContent = "\uFEFF"; csvContent += "日付,分類,カテゴリー,お店,支払い方法,金額,メモ\n";
-            const sortedTxns = [...state.transactions].sort((a, b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts);
+            let csvContent = "\uFEFF"; csvContent += "日付,時間,分類,カテゴリー,お店,支払い方法,金額,メモ\n";
+            const sortedTxns = [...state.transactions].sort((a, b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : (b.ts || 0) - (a.ts || 0));
             sortedTxns.forEach(t => {
                 const cls = state.shopClasses.find(c => c.id === t.classId) || {name: ''}; const cat = state.categories.find(c => c.id === t.categoryId) || {name: ''}; const pay = state.paymentMethods.find(p => p.id === t.paymentId) || {name: ''};
-                const row = [t.date, cls.name, cat.name, t.shopName, pay.name, t.amount, t.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
+                const timeStr = t.time || formatTimeFromTs(t.ts);
+                const row = [t.date, timeStr, cls.name, cat.name, t.shopName, pay.name, t.amount, t.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
             });
             await shareFile(csvContent, `家計簿データ_${new Date().toISOString().split('T')[0]}.csv`, "text/csv;charset=utf-8;");
         };
@@ -1190,6 +1315,7 @@
                         }
 
                         state.transactions = imported.transactions;
+                        state.timeSlots = Array.isArray(imported.timeSlots) && imported.timeSlots.length > 0 ? imported.timeSlots : DEFAULT_STATE.timeSlots;
                         state.shopClasses = imported.shopClasses;
                         state.categories = imported.categories;
                         state.paymentMethods = imported.paymentMethods;
@@ -1229,19 +1355,21 @@
                 return;
             }
             
-            const d = new Date();
-            const todayDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const now = new Date();
+            const todayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            const nowTime = roundToHalfHour(now);
             
             state.transactions.push({ 
                 id: generateId(), 
                 amount: amt, 
                 date: todayDate, 
+                time: nowTime,
                 classId: "", 
                 categoryId: "", 
                 shopName: "", 
                 paymentId: "", 
                 memo: "あとで詳細を設定", 
-                ts: Date.now() 
+                ts: now.getTime() 
             });
             
             saveData(); 
@@ -1347,6 +1475,109 @@
             document.getElementById('modal-shops').classList.add('active');
         }
 
+        /* ==================== 朝・昼・夜 ＋ 30分刻みボトムシートUI (表記なし・現在一番左) ==================== */
+        let currentTimeSlotMode = 'now'; // 'preset' | 'now' | 'custom' | null(未選択)
+
+        function renderTimePills(activeTime, isSelected = true) {
+            const container = document.getElementById('container-time-pills');
+            if (!container) return;
+            container.innerHTML = '';
+
+            // 1. 「現在」ボタンを一番左に配置（時間表記なし）
+            const nowTime = roundToHalfHour(new Date());
+            const isNowSelected = isSelected && (currentTimeSlotMode === 'now');
+            const nowBtn = document.createElement('button');
+            nowBtn.type = 'button';
+            nowBtn.className = `time-pill ${isNowSelected ? 'active' : ''}`;
+            nowBtn.innerHTML = `<span>現在</span>`;
+            nowBtn.onclick = () => selectTimeSlot(nowTime, 'now');
+            container.appendChild(nowBtn);
+
+            // 2. 朝、昼、夜などのプリセットピル（時間表記なし）
+            const slots = state.timeSlots && state.timeSlots.length > 0 ? state.timeSlots : DEFAULT_STATE.timeSlots;
+            let matchedSlot = false;
+
+            slots.forEach(slot => {
+                const isThisSelected = isSelected && (currentTimeSlotMode === 'preset') && (slot.time === activeTime);
+                if (isThisSelected) matchedSlot = true;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `time-pill ${isThisSelected ? 'active' : ''}`;
+                btn.innerHTML = `<span>${escapeHTML(slot.name)}</span>`;
+                btn.onclick = () => selectTimeSlot(slot.time, 'preset');
+                container.appendChild(btn);
+            });
+
+            // 3. 30分単位ボトムシート呼び出しボタン
+            const isCustomSelected = isSelected && (currentTimeSlotMode === 'custom' || (!matchedSlot && !isNowSelected && activeTime));
+            const customBtn = document.createElement('button');
+            customBtn.type = 'button';
+            customBtn.className = `time-pill ${isCustomSelected ? 'active' : ''}`;
+            customBtn.innerHTML = `<span>30分単位 ⏱️</span>`;
+            customBtn.onclick = () => openTimePickerSheet();
+            container.appendChild(customBtn);
+
+            // ラベル・inputの更新
+            const timeInp = document.getElementById('inp-time');
+            const dispLbl = document.getElementById('lbl-display-time');
+            if (isSelected && activeTime) {
+                timeInp.value = activeTime;
+                dispLbl.textContent = activeTime;
+                dispLbl.className = 'text-[#007AFF] font-bold text-[17px] tracking-tight';
+            } else {
+                timeInp.value = '';
+                dispLbl.textContent = '時間を選択';
+                dispLbl.className = 'text-[#FF3B30] font-bold text-[15px] tracking-tight';
+            }
+        }
+
+        function selectTimeSlot(timeVal, mode = 'preset') {
+            currentTimeSlotMode = mode;
+            renderTimePills(timeVal, true);
+        }
+
+        // 日付変更時のトリガー：勝手に朝を青くせず、未選択状態にして選択を促す
+        function onDateInputChange(newDateStr) {
+            if (!newDateStr) return;
+            const container = document.getElementById('item-time-container');
+            if (container) {
+                container.classList.remove('pulse-focus');
+                void container.offsetWidth; // リフロー発生
+                container.classList.add('pulse-focus');
+            }
+            currentTimeSlotMode = null;
+            renderTimePills('', false); // 全てのピルを非アクティブにして選ばせる
+        }
+
+        /* 30分刻みボトムシート */
+        function openTimePickerSheet() {
+            const grid = document.getElementById('grid-30m-times');
+            grid.innerHTML = '';
+            const curVal = document.getElementById('inp-time').value || roundToHalfHour(new Date());
+
+            for (let h = 0; h < 24; h++) {
+                for (let m = 0; m < 60; m += 30) {
+                    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    const isCur = (timeStr === curVal);
+                    const btn = document.createElement('div');
+                    btn.className = `time-grid-btn ${isCur ? 'active' : ''}`;
+                    btn.textContent = timeStr;
+                    btn.onclick = () => {
+                        selectTimeSlot(timeStr, 'custom');
+                        closeTimePickerSheet();
+                    };
+                    grid.appendChild(btn);
+                }
+            }
+            document.getElementById('sheet-time-backdrop').classList.add('active');
+            document.getElementById('sheet-time-picker').classList.add('active');
+        }
+
+        function closeTimePickerSheet() {
+            document.getElementById('sheet-time-backdrop').classList.remove('active');
+            document.getElementById('sheet-time-picker').classList.remove('active');
+        }
+
         function openDetailModal(shopObj = null, txnToEdit = null, shortcutObj = null) {
             closeModal('modal-shops'); closeModal('modal-class-select'); editingTxnId = txnToEdit ? txnToEdit.id : null; const title = document.getElementById('title-detail'); const delBox = document.getElementById('box-delete'); 
             
@@ -1354,22 +1585,39 @@
             populateSelect('inp-cat', state.categories, null); 
             populateSelect('inp-payment', state.paymentMethods, null);
             
-            const d = new Date(); const todayDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const now = new Date(); 
+            const todayDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            let initTime = roundToHalfHour(now);
 
             if (editingTxnId) {
                 title.textContent = '編集'; delBox.classList.remove('hidden'); delBox.classList.add('block');
-                document.getElementById('inp-amount').value = txnToEdit.amount; document.getElementById('inp-date').value = txnToEdit.date;
+                document.getElementById('inp-amount').value = txnToEdit.amount; 
+                document.getElementById('inp-date').value = txnToEdit.date;
+                initTime = txnToEdit.time || (txnToEdit.ts ? formatTimeFromTs(txnToEdit.ts) : roundToHalfHour(now));
+                
+                // 既存のtimeSlotsと照合
+                const matchSlot = state.timeSlots.find(s => s.time === initTime);
+                currentTimeSlotMode = matchSlot ? 'preset' : 'custom';
+                renderTimePills(initTime, true);
+
                 document.getElementById('inp-class').value = txnToEdit.classId; updateShopSelect('inp-class', 'inp-shop', txnToEdit.shopName);
                 document.getElementById('inp-cat').value = txnToEdit.categoryId; document.getElementById('inp-payment').value = txnToEdit.paymentId; document.getElementById('inp-memo').value = txnToEdit.memo;
             } else if (shortcutObj) {
                 title.textContent = shortcutObj.name; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('inp-amount').value = shortcutObj.amount || (currentAmount === "0" ? "" : currentAmount); 
                 document.getElementById('inp-date').value = todayDate;
+                initTime = roundToHalfHour(now);
+                currentTimeSlotMode = 'now';
+                renderTimePills(initTime, true);
                 document.getElementById('inp-class').value = shortcutObj.classId; updateShopSelect('inp-class', 'inp-shop', shortcutObj.shopName);
                 document.getElementById('inp-cat').value = shortcutObj.categoryId; document.getElementById('inp-payment').value = shortcutObj.paymentId; document.getElementById('inp-memo').value = shortcutObj.memo;
             } else {
                 title.textContent = '詳細確認'; delBox.classList.add('hidden'); delBox.classList.remove('block');
-                document.getElementById('inp-amount').value = currentAmount === "0" ? "" : currentAmount; document.getElementById('inp-date').value = todayDate;
+                document.getElementById('inp-amount').value = currentAmount === "0" ? "" : currentAmount; 
+                document.getElementById('inp-date').value = todayDate;
+                initTime = roundToHalfHour(now);
+                currentTimeSlotMode = 'now';
+                renderTimePills(initTime, true);
                 if (shopObj) {
                     document.getElementById('inp-class').value = shopObj.classId; updateShopSelect('inp-class', 'inp-shop', shopObj.name);
                     document.getElementById('inp-cat').value = shopObj.categoryId; document.getElementById('inp-payment').value = shopObj.paymentId; document.getElementById('inp-memo').value = shopObj.memo;
@@ -1393,17 +1641,26 @@
                 showAlert("日付を入力してください");
                 return;
             }
+            let timeVal = document.getElementById('inp-time').value;
+            if (!timeVal) {
+                timeVal = roundToHalfHour(new Date());
+            }
             const shopNameVal = document.getElementById('inp-shop').value;
+            
+            const combinedDate = new Date(`${dateVal}T${timeVal}:00`);
+            const calculatedTs = isNaN(combinedDate.getTime()) ? Date.now() : combinedDate.getTime();
+
             const newTxn = { 
                 id: editingTxnId || generateId(), 
                 amount: amt, 
                 date: dateVal, 
+                time: timeVal,
                 classId: document.getElementById('inp-class').value, 
                 categoryId: document.getElementById('inp-cat').value, 
                 shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, 
                 paymentId: document.getElementById('inp-payment').value, 
                 memo: document.getElementById('inp-memo').value.trim(), 
-                ts: editingTxnId ? (state.transactions.find(t=>t.id===editingTxnId)?.ts || Date.now()) : Date.now() 
+                ts: calculatedTs
             };
             if (editingTxnId) { 
                 const idx = state.transactions.findIndex(t => t.id === editingTxnId); 
@@ -1436,7 +1693,7 @@
 
         function jumpToDate(dateStr) { if(!dateStr) return; calCurrentDate = new Date(dateStr); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
 
-        /* ==================== 履歴 検索・ポップアップフィルター・並び替え ==================== */
+        /* ==================== 履歴 検索・フィルター・並び替え ==================== */
 
         function onCalSearchInput(val) {
             calSearchQuery = val.trim().toLowerCase();
@@ -1474,7 +1731,6 @@
             const resetBtn = document.getElementById('btn-filter-reset');
             const sortBtn = document.getElementById('btn-sort');
 
-            // カテゴリーボタン
             if (calSelectedCatId) {
                 const cat = state.categories.find(c => c.id === calSelectedCatId);
                 catLbl.textContent = cat ? cat.name : 'カテゴリー';
@@ -1484,7 +1740,6 @@
                 catBtn.classList.remove('active');
             }
 
-            // 支払い方法ボタン
             if (calSelectedPayId) {
                 const pay = state.paymentMethods.find(p => p.id === calSelectedPayId);
                 payLbl.textContent = pay ? pay.name : '支払い';
@@ -1494,12 +1749,10 @@
                 payBtn.classList.remove('active');
             }
 
-            // ソートボタンの状態 (標準の日付降順以外ならアクティブカラー)
             if (sortBtn) {
                 sortBtn.classList.toggle('active', calSortType !== 'date_desc');
             }
 
-            // 全解除ボタンの表示/非表示
             const isFiltered = calSelectedCatId || calSelectedPayId || calSearchQuery;
             if (isFiltered) {
                 resetBtn.classList.remove('hidden');
@@ -1522,7 +1775,6 @@
             const items = isCat ? state.categories : state.paymentMethods;
             const selectedId = isCat ? calSelectedCatId : calSelectedPayId;
 
-            // 全解除項目
             const allDiv = document.createElement('div');
             allDiv.className = 'ios-item clickable cursor-pointer';
             allDiv.onclick = () => applySheetFilter(null);
@@ -1532,7 +1784,6 @@
             `;
             listEl.appendChild(allDiv);
 
-            // 各アイテム
             items.forEach(item => {
                 const isSelected = (selectedId === item.id);
                 const div = document.createElement('div');
@@ -1554,7 +1805,7 @@
             const titleEl = document.getElementById('sheet-title');
             const listEl = document.getElementById('sheet-list');
             const resetBtn = document.getElementById('sheet-reset-btn');
-            resetBtn.classList.add('hidden'); // ソート時はリセットボタン不要
+            resetBtn.classList.add('hidden');
             listEl.innerHTML = '';
 
             titleEl.textContent = '履歴の並び替え';
@@ -1643,7 +1894,6 @@
 
             document.getElementById('lbl-period').textContent = periodLabel;
 
-            // フィルター適用
             if (calSelectedCatId) {
                 filtered = filtered.filter(t => t.categoryId === calSelectedCatId);
             }
@@ -1651,7 +1901,6 @@
                 filtered = filtered.filter(t => t.paymentId === calSelectedPayId);
             }
 
-            // 検索ワード適用
             if (calSearchQuery) {
                 filtered = filtered.filter(t => {
                     const shop = (t.shopName || '').toLowerCase();
@@ -1670,16 +1919,15 @@
                 });
             }
 
-            // 並び替え処理
             filtered.sort((a, b) => {
                 if (calSortType === 'date_asc') {
-                    return a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.ts - b.ts;
+                    return a.date !== b.date ? (a.date < b.date ? -1 : 1) : (a.ts || 0) - (b.ts || 0);
                 } else if (calSortType === 'amt_desc') {
-                    return b.amount !== a.amount ? b.amount - a.amount : (a.date > b.date ? -1 : 1);
+                    return b.amount !== a.amount ? b.amount - a.amount : (b.ts || 0) - (a.ts || 0);
                 } else if (calSortType === 'amt_asc') {
-                    return a.amount !== b.amount ? a.amount - b.amount : (a.date > b.date ? -1 : 1);
+                    return a.amount !== b.amount ? a.amount - b.amount : (b.ts || 0) - (a.ts || 0);
                 } else {
-                    return a.date !== b.date ? (a.date > b.date ? -1 : 1) : b.ts - a.ts;
+                    return a.date !== b.date ? (a.date > b.date ? -1 : 1) : (b.ts || 0) - (a.ts || 0);
                 }
             });
 
@@ -1691,16 +1939,38 @@
                 list.innerHTML = `<div class="py-12 text-center text-gray-400 font-medium text-[14px]">${emptyText}</div>`;
             } else {
                 filtered.forEach(t => {
-                    total += t.amount; const dt = new Date(t.date); const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'};
+                    total += t.amount; 
+                    const dt = new Date(t.date); 
+                    const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; 
+                    const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'};
                     const isUnset = !t.classId && !t.categoryId;
                     const displayTitle = isUnset ? '未設定' : (t.shopName || catObj.name);
                     const titleClass = isUnset ? 'text-[#FF3B30]' : 'text-gray-900';
                     const subText = isUnset ? '<span class="bg-[#FF3B30] text-white text-[9px] px-1 py-[2px] rounded-[4px] font-bold mr-1 leading-none inline-flex items-center">要編集</span>' : `${escapeHTML(catObj.name)} ${t.memo ? '・'+escapeHTML(t.memo) : ''}`;
-                    const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openDetailModal(null, t);
+                    const div = document.createElement('div'); 
+                    div.className = 'ios-item clickable cursor-pointer'; 
+                    div.onclick = () => openDetailModal(null, t);
                     
                     const dateSubLabel = (calTab === 'yearly' || calSortType.startsWith('amt')) ? `${dt.getMonth()+1}/${dt.getDate()}` : dt.getDate();
+                    const timeStr = t.time || formatTimeFromTs(t.ts);
 
-                    div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-10 shrink-0"><span class="text-[10px] text-gray-400 font-bold uppercase">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span><span class="text-sm font-bold text-gray-700">${dateSubLabel}</span></div><div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full"><span class="font-bold ${titleClass} truncate tracking-tight text-[16px]">${escapeHTML(displayTitle)}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate flex items-center">${subText}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span><span class="text-[10px] text-[#007AFF] mt-0.5">${escapeHTML(payObj.name)}</span></div>`;
+                    div.innerHTML = `
+                        <div class="flex items-center gap-3 w-2/3">
+                            <div class="flex flex-col items-center justify-center w-11 shrink-0">
+                                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider leading-none mb-0.5">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span>
+                                <span class="text-[15px] font-extrabold text-gray-800 leading-tight">${dateSubLabel}</span>
+                                <span class="text-[10px] text-gray-400 font-semibold tracking-tighter mt-0.5 leading-none">${timeStr}</span>
+                            </div>
+                            <div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full">
+                                <span class="font-bold ${titleClass} truncate tracking-tight text-[16px]">${escapeHTML(displayTitle)}</span>
+                                <span class="text-[11px] text-gray-500 mt-0.5 truncate flex items-center">${subText}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end shrink-0">
+                            <span class="font-bold text-[18px] text-gray-900 tracking-tight">¥${t.amount.toLocaleString()}</span>
+                            <span class="text-[10px] text-[#007AFF] mt-0.5">${escapeHTML(payObj.name)}</span>
+                        </div>
+                    `;
                     list.appendChild(div);
                 });
             }
@@ -1802,8 +2072,65 @@
             const d = new Date(); const defaultDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             showDatePrompt(defaultDate, (selectedDate) => {
                 if(!selectedDate) return;
-                state.transactions.push({ id: generateId(), amount: amt, date: selectedDate, classId: classId, categoryId: catId, shopName: shopName === 'ADD_NEW' ? '' : shopName, paymentId: paymentId, memo: memo, ts: Date.now() });
+                state.transactions.push({ id: generateId(), amount: amt, date: selectedDate, time: "09:00", classId: classId, categoryId: catId, shopName: shopName === 'ADD_NEW' ? '' : shopName, paymentId: paymentId, memo: memo, ts: new Date(`${selectedDate}T09:00:00`).getTime() || Date.now() });
                 saveData(); showAlert(`${selectedDate} に追加しました`); closeModal('modal-fixed-editor'); renderFixedExpenses();
+            });
+        };
+
+        /* ==================== 時間帯設定（追加・編集・削除） ==================== */
+        window.openTimeSlotModal = (id = null) => {
+            editingTimeSlotId = id;
+            document.getElementById('title-timeslot-editor').textContent = id ? '時間帯の編集' : '新しい時間帯';
+            const delBox = document.getElementById('box-delete-timeslot');
+
+            if (id && typeof id === 'string') {
+                delBox.classList.remove('hidden');
+                const slot = state.timeSlots.find(x => x.id === id);
+                if (slot) {
+                    document.getElementById('ed-ts-name').value = slot.name;
+                    document.getElementById('ed-ts-time').value = slot.time;
+                }
+            } else {
+                editingTimeSlotId = null;
+                delBox.classList.add('hidden');
+                document.getElementById('ed-ts-name').value = "";
+                document.getElementById('ed-ts-time').value = "12:00";
+            }
+            document.getElementById('modal-timeslot-editor').classList.add('active');
+        };
+
+        window.saveTimeSlotEditor = () => {
+            const name = document.getElementById('ed-ts-name').value.trim();
+            const time = document.getElementById('ed-ts-time').value;
+            if (!name) { showAlert("時間帯の名称を入力してください (例: 朝、昼、夜、深夜)"); return; }
+            if (!time) { showAlert("時刻を指定してください"); return; }
+
+            const newSlot = { id: editingTimeSlotId || generateId(), name, time };
+            if (editingTimeSlotId) {
+                const idx = state.timeSlots.findIndex(x => x.id === editingTimeSlotId);
+                if (idx > -1) state.timeSlots[idx] = newSlot;
+            } else {
+                state.timeSlots.push(newSlot);
+            }
+            saveData();
+            closeModal('modal-timeslot-editor');
+            renderPanelLists();
+            const curTime = document.getElementById('inp-time').value || "12:00";
+            renderTimePills(curTime, true);
+        };
+
+        window.deleteTimeSlot = () => {
+            if (state.timeSlots.length <= 1) {
+                showAlert("少なくとも1つの時間帯が必要です。");
+                return;
+            }
+            showConfirm("この時間帯を削除しますか？", () => {
+                state.timeSlots = state.timeSlots.filter(t => t.id !== editingTimeSlotId);
+                saveData();
+                closeModal('modal-timeslot-editor');
+                renderPanelLists();
+                const curTime = document.getElementById('inp-time').value || "12:00";
+                renderTimePills(curTime, true);
             });
         };
 
@@ -1812,11 +2139,11 @@
             const list = document.getElementById(containerId); list.innerHTML = '';
             state[arrayName].forEach(item => {
                 const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', item.id); const onClick = clickActionStr ? clickActionStr.replace('{id}', item.id) : '';
-                div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1" onclick="${onClick}"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('${arrayName}', '${item.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button>${formatHTML(item)}</div><div class="drag-handle shrink-0 w-12">≡</div>`;
+                div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1 cursor-pointer" onclick="${onClick}"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('${arrayName}', '${item.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button>${formatHTML(item)}</div><div class="drag-handle shrink-0 w-12">≡</div>`;
                 list.appendChild(div);
             });
             if(sortables[containerId]) sortables[containerId].destroy();
-            sortables[containerId] = new Sortable(list, { handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50', onEnd: function (evt) { const item = state[arrayName].splice(evt.oldIndex, 1)[0]; state[arrayName].splice(evt.newIndex, 0, item); saveData(); if(arrayName === 'shortcuts') renderShortcuts(); } });
+            sortables[containerId] = new Sortable(list, { handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50', onEnd: function (evt) { const item = state[arrayName].splice(evt.oldIndex, 1)[0]; state[arrayName].splice(evt.newIndex, 0, item); saveData(); if(arrayName === 'shortcuts') renderShortcuts(); if(arrayName === 'timeSlots') { const curTime = document.getElementById('inp-time').value || '12:00'; renderTimePills(curTime, true); } } });
         }
 
         function renderGroupedShopsList() {
@@ -1828,7 +2155,7 @@
                 if (classShops.length === 0) { const empty = document.createElement('div'); empty.className = 'empty-zone'; empty.textContent = 'ドラッグして追加'; listDiv.appendChild(empty); }
                 classShops.forEach(shop => {
                     const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', shop.id);
-                    div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1" onclick="openShopEditor('${shop.id}')"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('shops', '${shop.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button><span class="font-medium truncate text-gray-900">${escapeHTML(shop.name)}</span></div><div class="drag-handle shrink-0 w-12">≡</div>`;
+                    div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1" onclick="openShopEditor('${shop.id}')"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('shops', '${shop.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button><span class="font-medium truncate text-gray-900">${escapeHTML(shop.name)}</span></div><div class="drag-handle shrink-0 w-12">≡</div>`;
                     listDiv.appendChild(div);
                 });
                 container.appendChild(listDiv);
@@ -1841,13 +2168,14 @@
             });
         }
 
-        window.deleteItem = (arrayName, id) => showConfirm("削除しますか？", () => { state[arrayName] = state[arrayName].filter(i=>i.id!==id); saveData(); renderPanelLists(); if(arrayName === 'shortcuts') renderShortcuts(); });
+        window.deleteItem = (arrayName, id) => showConfirm("削除しますか？", () => { state[arrayName] = state[arrayName].filter(i=>i.id!==id); saveData(); renderPanelLists(); if(arrayName === 'shortcuts') renderShortcuts(); if(arrayName === 'timeSlots') { const curTime = document.getElementById('inp-time').value || '12:00'; renderTimePills(curTime, true); } });
         window.renameItem = (arrayName, id) => {
             const item = state[arrayName].find(i=>i.id===id); if(!item) return; showPrompt(arrayName === 'shopClasses' ? "分類とアイコン (例: 🍽️外食)" : "新しい名前", arrayName === 'shopClasses' ? (item.icon + ' ' + item.name) : item.name, val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } item.icon = icon; item.name = name; } else { item.name = val.trim(); } saveData(); renderPanelLists(); } });
         };
         window.addItem = (arrayName, promptTitle) => { showPrompt(promptTitle, "", val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } state[arrayName].push({id: generateId(), name: name, icon: icon}); } else { state[arrayName].push({id: generateId(), name: val.trim()}); } saveData(); renderPanelLists(); } }); };
 
         function renderPanelLists() {
+            buildSortableList('list-set-time-slots', 'timeSlots', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900">${escapeHTML(i.name)}</span><span class="text-[#007AFF] font-bold text-[15px]">${i.time}</span></div>`, `openTimeSlotModal('{id}')`);
             buildSortableList('list-set-payments', 'paymentMethods', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, `renameItem('paymentMethods', '{id}')`);
             buildSortableList('list-set-categories', 'categories', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, `renameItem('categories', '{id}')`);
             buildSortableList('list-set-classes', 'shopClasses', i => `<span class="font-medium truncate text-[17px] text-gray-900"><span class="text-xl mr-2">${escapeHTML(i.icon)}</span>${escapeHTML(i.name)}</span>`, `renameItem('shopClasses', '{id}')`);
@@ -1903,10 +2231,7 @@
             if (editingShortcutId) { const idx = state.shortcuts.findIndex(x => x.id === editingShortcutId); if(idx > -1) state.shortcuts[idx] = newSC; } else { state.shortcuts.push(newSC); } saveData(); closeModal('modal-shortcut-editor'); renderPanelLists(); renderShortcuts();
         };
 
-        /* ============================================================
-           Firebase クラウド同期
-           ============================================================ */
-
+        /* ==================== Firebase クラウド同期 ==================== */
         const firebaseConfig = {
             apiKey: "AIzaSyD9pqm3qVbxf9gGxl9us-xq_Vuqpjx_8As",
             authDomain: "expense-tracker-5e542.firebaseapp.com",
@@ -1930,8 +2255,8 @@
             }
         }
 
-        const SYNCED_COLLECTIONS = ['transactions', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
-        const ORDERED_COLLECTIONS = new Set(['shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses']);
+        const SYNCED_COLLECTIONS = ['transactions', 'timeSlots', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
+        const ORDERED_COLLECTIONS = new Set(['timeSlots', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses']);
 
         function withOrder(arr, name) {
             if (!ORDERED_COLLECTIONS.has(name)) return arr;
