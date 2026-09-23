@@ -422,11 +422,11 @@
         <!-- ==================== FIXED EXPENSES VIEW ==================== -->
         <div id="view-fixed" class="view-section overflow-hidden">
             <div class="px-5 pt-6 pb-2 shrink-0">
-                <h1 class="text-[34px] font-bold mb-2 tracking-tight">固定費</h1>
+                <h1 class="text-[34px] font-bold mb-2 tracking-tight">定期支出</h1>
                 <p class="text-gray-500 text-[13px] mb-6 leading-relaxed">毎月指定した日付に、この画面で設定した支出が<br>自動的に履歴（家計簿）へ追加されます。</p>
                 <button onclick="openFixedEditor(null)" class="w-full py-4 text-[#007AFF] font-bold bg-white rounded-xl shadow-sm mb-4 active:bg-gray-50 text-[16px] flex items-center justify-center gap-2 border border-[rgba(0,0,0,0.03)]">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-                    固定費を追加する
+                    定期支出を追加する
                 </button>
             </div>
             <div class="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar" id="list-fixed-expenses"></div>
@@ -727,7 +727,7 @@
             </div>
             <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="fixed">
                 <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                <span class="text-[10px] font-semibold text-gray-400 transition-colors">固定費</span>
+                <span class="text-[10px] font-semibold text-gray-400 transition-colors">定期支出</span>
             </div>
             <div class="flex flex-col items-center justify-center h-[50px] cursor-pointer nav-link" data-target="settings">
                 <svg class="w-[26px] h-[26px] mb-1 text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -978,7 +978,7 @@
         <div id="modal-fixed-editor" class="modal-sheet z-[80] bg-[#F2F2F7]">
             <div class="px-4 flex justify-between items-center pb-3 pt-3 border-b border-[rgba(60,60,67,0.1)] bg-white shrink-0">
                 <button class="text-[#007AFF] text-[17px] font-medium active:opacity-60" onclick="closeModal('modal-fixed-editor')">キャンセル</button>
-                <h2 class="font-bold text-[17px]" id="title-fixed-editor">固定費の設定</h2>
+                <h2 class="font-bold text-[17px]" id="title-fixed-editor">定期支出の設定</h2>
                 <button class="text-[#007AFF] text-[17px] font-bold active:opacity-60" onclick="saveFixedEditor()">保存</button>
             </div>
             <div class="px-4 flex-1 overflow-y-auto no-scrollbar pt-6 pb-24">
@@ -1375,7 +1375,7 @@
                                 categoryId: fe.categoryId, 
                                 shopName: fe.shopName, 
                                 paymentId: fe.paymentId,
-                                memo: fe.memo || (isPending ? '固定費 (金額未定)' : '固定費'),
+                                memo: fe.memo || (isPending ? '定期支出 (金額未定)' : '定期支出'),
                                 isFixed: fe.isFixed === false ? false : true,
                                 ts: new Date(`${dateStr}T09:00:00`).getTime() || Date.now()
                             });
@@ -1386,7 +1386,7 @@
                 currentDate.setDate(currentDate.getDate() + 1);
             }
             state.lastRunDate = todayStr; saveData();
-            if (addedCount > 0) showAlert(`固定費が ${addedCount}件 履歴に追加されました。`);
+            if (addedCount > 0) showAlert(`定期支出が ${addedCount}件 履歴に追加されました。`);
         }
 
         function showPrompt(title, defaultVal, cb) { document.getElementById('prompt-title').textContent = title; const inp = document.getElementById('prompt-input'); inp.value = defaultVal || ''; document.getElementById('custom-prompt').classList.add('active'); setTimeout(() => inp.focus(), 50); promptCallback = cb; }
@@ -3192,7 +3192,7 @@
 
         function renderFixedExpenses() {
             const list = document.getElementById('list-fixed-expenses'); list.innerHTML = '';
-            if (!state.fixedExpenses || state.fixedExpenses.length === 0) { list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium text-[14px]">登録された固定費はありません</div>`; return; }
+            if (!state.fixedExpenses || state.fixedExpenses.length === 0) { list.innerHTML = `<div class="py-10 text-center text-gray-400 font-medium text-[14px]">登録された定期支出はありません</div>`; return; }
             const sorted = [...state.fixedExpenses].sort((a,b) => a.day - b.day); const containerDiv = document.createElement('div'); containerDiv.className = 'ios-list shadow-sm';
             sorted.forEach(fe => {
                 const cls = state.shopClasses.find(c => c.id === fe.classId) || { icon: '📦' }; const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openFixedEditor(fe.id);
@@ -3207,7 +3207,7 @@
 
         window.openFixedEditor = (id = null) => {
             editingFixedId = id; 
-            document.getElementById('title-fixed-editor').textContent = id ? '固定費の編集' : '新しい固定費'; 
+            document.getElementById('title-fixed-editor').textContent = id ? '定期支出の編集' : '新しい定期支出';
             populateSelect('fx-class', state.shopClasses, null); 
             populateSelect('fx-cat', state.categories, null); 
             populateSelect('fx-pay', state.paymentMethods, null);
@@ -3302,7 +3302,7 @@
             saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses();
         };
 
-        window.deleteFixedExpense = () => { showConfirm("この固定費を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
+        window.deleteFixedExpense = () => { showConfirm("この定期支出を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
 
         window.manualAddFixed = () => {
             const name = document.getElementById('fx-name').value.trim(); 
@@ -3331,7 +3331,7 @@
                     categoryId: catId, 
                     shopName: shopName === 'ADD_NEW' ? '' : shopName, 
                     paymentId: paymentId,
-                    memo: memo || (isPending ? '固定費 (金額未定)' : '固定費'),
+                    memo: memo || (isPending ? '定期支出 (金額未定)' : '定期支出'),
                     isFixed: currentFixedEditorIsFixed,
                     ts: new Date(`${selectedDate}T09:00:00`).getTime() || Date.now()
                 });
