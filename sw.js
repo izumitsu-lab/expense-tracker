@@ -4,7 +4,7 @@
  * - Firebase SDK（バージョン固定URL）は保存済みを優先
  * - Firestore / ログインなどの通信には一切関与しない（同期の仕組みはそのまま）
  */
-const CACHE_NAME = 'kakeibo-cache-v2.3.0';
+const CACHE_NAME = 'kakeibo-cache-v2.4.0';
 const APP_SHELL = [
   './', './index.html', './styles.css', './tailwind.css', './app.js',
   './vendor/Sortable.min.js', './manifest.webmanifest', './favicon-32.png', './apple-touch-icon.png'

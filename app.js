@@ -1,5 +1,5 @@
         /* =====================================================================
-         * 家計簿アプリ app.js  —  v2.3（shopId移行・Undo対応 / 2026-09-23）
+         * 家計簿アプリ app.js  —  v2.4（表示の安全化・同期の自動復帰・ログイン対策・オフライン起動時の定期支出保留 / 2026-09-23）
          * 修正内容の一覧は同梱の「修正内容.md」を参照。
          * 同期サーバー（Firestore）のデータ構造・コレクション名は旧版から変更なし。
          * ===================================================================== */
@@ -617,7 +617,7 @@
 
         window.exportData = async () => {
             const exportPayload = {
-                version: "2.1",
+                version: "2.4",
                 exportedAt: new Date().toISOString(),
                 ...state
             };
@@ -666,6 +666,14 @@
                         if (badTime) throw new Error("時間帯・クイック時刻の時刻形式が正しくありません。");
                         const badFixed = (imported.fixedExpenses || []).some(f => typeof f.amount !== 'number' || isNaN(f.amount));
                         if (badFixed) throw new Error("定期支出の金額の形式が正しくありません。");
+                        // [v2.4] 記録の時刻は「空」または「H:MM / HH:MM」だけを許可する（画面に表示される欄のため）
+                        const badTxnTime = imported.transactions.some(t => t.time !== undefined && t.time !== null && t.time !== '' && (typeof t.time !== 'string' || !/^\d{1,2}:\d{2}$/.test(t.time)));
+                        if (badTxnTime) throw new Error("取引データの中に時刻の形式が正しくないものが含まれています。");
+                        const badTxnTs = imported.transactions.some(t => t.ts !== undefined && t.ts !== null && (typeof t.ts !== 'number' || !Number.isFinite(t.ts)));
+                        if (badTxnTs) throw new Error("取引データの中に登録日時の形式が正しくないものが含まれています。");
+                        // [v2.4] クイック入力の金額は「数値」または「未指定（null）」だけを許可する
+                        const badShortcutAmt = (imported.shortcuts || []).some(sc => sc.amount !== undefined && sc.amount !== null && (typeof sc.amount !== 'number' || !Number.isFinite(sc.amount) || sc.amount < 0));
+                        if (badShortcutAmt) throw new Error("クイック入力の金額の形式が正しくありません。");
 
                         state.transactions = imported.transactions;
                         state.timeSlots = Array.isArray(imported.timeSlots) && imported.timeSlots.length > 0 ? imported.timeSlots : DEFAULT_STATE.timeSlots;
@@ -790,15 +798,23 @@
             if (state.shortcuts.length === 0) { list.innerHTML = `<div class="col-span-2 text-center text-gray-400 text-[14px] py-10 mt-10">設定からクイック入力を<br>追加してください</div>`; return; }
             state.shortcuts.forEach(sc => {
                 const btn = document.createElement('div'); btn.className = "shortcut-card"; btn.onclick = () => useShortcut(sc);
-                const displayAmt = sc.amount ? `¥${sc.amount.toLocaleString()}` : `<span class="text-[13px] text-gray-400 font-medium">金額未指定</span>`;
+                // [v2.4] 金額は数値に変換してから表示する（文字列がそのまま HTML に入らないように）
+                const scAmt = shortcutAmountOf(sc);
+                const displayAmt = scAmt ? `¥${scAmt.toLocaleString()}` : `<span class="text-[13px] text-gray-400 font-medium">金額未指定</span>`;
                 const shopLabel = escapeHTML(sc.shopName || 'お店未指定');
                 btn.innerHTML = `<span class="text-gray-900 font-bold truncate w-full text-[16px] tracking-tight text-left">${escapeHTML(sc.name)}</span><span class="text-gray-400 text-[11px] font-medium truncate w-full mb-2">${shopLabel}</span><span class="text-[#007AFF] font-extrabold text-[22px] tracking-tight flex items-center leading-none">${displayAmt}</span>`; 
                 list.appendChild(btn);
             });
         }
+        // クイック入力の金額を「正の整数 または null」として取り出す
+        function shortcutAmountOf(sc) {
+            const n = Number(sc && sc.amount);
+            return (Number.isFinite(n) && n > 0) ? Math.floor(n) : null;
+        }
         function useShortcut(sc) { 
-            if (sc.amount) {
-                currentAmount = sc.amount.toString(); 
+            const scAmt = shortcutAmountOf(sc);
+            if (scAmt) {
+                currentAmount = String(scAmt); 
                 updateAmount(); 
             }
             openDetailModal(null, null, sc); 
@@ -1530,7 +1546,7 @@
                             <div class="flex flex-col items-center justify-center w-11 shrink-0">
                                 <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider leading-none mb-0.5">${dt.toLocaleDateString('en-US', {weekday: 'short'})}</span>
                                 <span class="text-[15px] font-extrabold text-gray-800 leading-tight">${dateSubLabel}</span>
-                                <span class="text-[10px] text-gray-400 font-semibold tracking-tighter mt-0.5 leading-none">${timeStr}</span>
+                                <span class="text-[10px] text-gray-400 font-semibold tracking-tighter mt-0.5 leading-none">${escapeHTML(timeStr)}</span>
                             </div>
                             <div class="flex flex-col border-l pl-3 border-[rgba(60,60,67,0.15)] overflow-hidden w-full">
                                 <span class="font-bold ${titleClass} truncate tracking-tight text-[16px]">${escapeHTML(displayTitle)}</span>
@@ -2255,8 +2271,8 @@
                     recentHistoryHtml += `
                         <div class="flex justify-between items-center py-2.5 border-b border-[rgba(60,60,67,0.06)] last:border-b-0 text-sm">
                             <div class="flex items-center gap-2">
-                                <span class="text-xs text-gray-400 font-semibold">${t.date}</span>
-                                <span class="text-xs text-gray-500">${t.timeUnset ? '時間未設定' : (t.time || '')}</span>
+                                <span class="text-xs text-gray-400 font-semibold">${escapeHTML(t.date)}</span>
+                                <span class="text-xs text-gray-500">${t.timeUnset ? '時間未設定' : escapeHTML(t.time || '')}</span>
                             </div>
                             <span class="font-bold text-gray-900">¥${t.amount.toLocaleString()}</span>
                         </div>
@@ -2880,10 +2896,25 @@
         /* ==================== Firebase クラウド同期 ==================== */
         // ※ Firestore 上のデータ構造（users/{uid}/{コレクション名}/{id}）は旧バージョンと完全に同じです。
         //   新しいコレクションやフィールドは作りません（セキュリティルールの変更も不要）。
+        // [v2.4] ログイン処理のドメイン（authDomain）をアプリと同じドメインにする（Safari・iPhone のホーム画面版対策）
+        //   Safari はドメインをまたぐ保存領域を分離するため、アプリ（例: xxx.web.app）と authDomain（xxx.firebaseapp.com）が
+        //   違うと、リダイレクト方式のログインが失敗しやすい。Firebase Hosting で公開している場合は、
+        //   アプリ自身のドメインの /__/auth/handler をログイン処理に使えるため、同じドメインに揃える。
+        //   ・既定の2つのドメイン（web.app / firebaseapp.com）は自動で判定します。
+        //   ・Firebase Hosting に独自ドメインをつないでいる場合は、下の配列にそのドメインを追加してください（例: 'kakeibo.example.com'）。
+        //   ・Firebase Hosting 以外（GitHub Pages など）で公開している場合は、従来どおり firebaseapp.com を使います。
+        const FIREBASE_PROJECT_ID = "expense-tracker-5e542";
+        const DEFAULT_AUTH_DOMAIN = FIREBASE_PROJECT_ID + ".firebaseapp.com";
+        const SAME_ORIGIN_AUTH_HOSTS = [
+            FIREBASE_PROJECT_ID + ".web.app",
+            FIREBASE_PROJECT_ID + ".firebaseapp.com"
+            // , 'kakeibo.example.com'   ← 独自ドメインを Firebase Hosting で使う場合はここに追加
+        ];
+        const AUTH_ON_SAME_ORIGIN = (location.protocol === 'https:' && SAME_ORIGIN_AUTH_HOSTS.includes(location.hostname));
         const firebaseConfig = {
             apiKey: "AIzaSyD9pqm3qVbxf9gGxl9us-xq_Vuqpjx_8As",
-            authDomain: "expense-tracker-5e542.firebaseapp.com",
-            projectId: "expense-tracker-5e542",
+            authDomain: AUTH_ON_SAME_ORIGIN ? location.host : DEFAULT_AUTH_DOMAIN,
+            projectId: FIREBASE_PROJECT_ID,
             storageBucket: "expense-tracker-5e542.firebasestorage.app",
             messagingSenderId: "555839306793",
             appId: "1:555839306793:web:fe23d6717fa5ae6ceff038"
@@ -2944,6 +2975,16 @@
         let localDirty = false;      // saveData 後、まだクラウドへ送る処理を始めていない変更がある
         let syncInFlight = 0;        // 送信中のコミット数
         let bootstrapToken = 0;      // ログイン切り替え時に古い初期化処理を無効化するための番号
+        // [v2.4] 同期の自動復帰（初期化・送信・監視のどれかが失敗したら、時間をおいて再試行する）
+        let pendingBootstrapUid = null;  // 初期化に失敗して、やり直しが必要なアカウント
+        let bootstrapInFlight = 0;       // 実行中の初期化の数
+        let recoveryTimer = null;
+        let recoveryAttempt = 0;
+        const RECOVERY_BASE_MS = 5000;        // 5秒 → 10秒 → 20秒 … と間隔を広げる
+        const RECOVERY_MAX_MS = 5 * 60 * 1000; // 最長5分
+        let syncFailed = false;          // 直前の送信が失敗した
+        // [v2.4] サーバーの最新状態を確認できたコレクション（オフライン起動時の定期支出の保留に使う）
+        let serverConfirmed = new Set();
 
         function loadSyncMeta() {
             try {
@@ -2974,10 +3015,11 @@
             if (mode === 'syncing') {
                 detail.textContent = '同期中…';
             } else if (mode === 'offline') {
-                detail.textContent = '保存待機中 (オフライン)';
+                // [v2.4] サーバー未確認の間は定期支出の自動追加を保留していることも伝える
+                detail.textContent = '保存待機中 (オフライン)' + ((currentUid && !fixedProcessingAllowed) ? '・定期支出は接続後に追加します' : '');
                 if (statusLbl) statusLbl.textContent = '保留中';
             } else if (mode === 'error') {
-                detail.textContent = errText ? `エラー: ${errText}` : '同期に失敗しました';
+                detail.textContent = (errText ? `エラー: ${errText}` : '同期に失敗しました') + (recoveryTimer ? '（自動で再試行します）' : '');
                 if (statusLbl) statusLbl.textContent = 'エラー';
             } else {
                 detail.textContent = '正常に同期されています';
@@ -2988,7 +3030,9 @@
         function syncToCloud() {
             if (!firebaseAvailable || !cloudReady) return;
             localDirty = true;
-            setSyncBadge('syncing');
+            // [v2.4] 電波がない・サーバー未確認のときは「同期中」ではなく「保存待機中」と表示する
+            const offlineNow = (typeof navigator !== 'undefined' && navigator.onLine === false) || !isServerConfirmed();
+            setSyncBadge(offlineNow ? 'offline' : 'syncing');
             clearTimeout(syncDebounceTimer);
             syncDebounceTimer = setTimeout(doSyncNow, 350);
         }
@@ -3032,9 +3076,17 @@
                 if (myToken !== bootstrapToken) return;
                 SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = newMaps[name]; });
                 persistSyncMeta();
-                setSyncBadge('ok');
+                syncFailed = false;
+                if (!pendingBootstrapUid) { recoveryAttempt = 0; clearTimeout(recoveryTimer); recoveryTimer = null; }
+                setSyncBadge(isServerConfirmed() ? 'ok' : 'offline');
             } catch (e) {
                 console.error('クラウド同期エラー:', e);
+                if (myToken !== bootstrapToken) return;
+                // [v2.4] 送れなかった変更は「未送信」に戻し、あとで自動的に送り直す
+                localDirty = true;
+                syncFailed = true;
+                if (isPermissionError(e)) { handlePermissionDenied(); return; }
+                scheduleSyncRecovery();
                 setSyncBadge('error', e.message);
             } finally {
                 syncInFlight--;
@@ -3102,23 +3154,47 @@
             detachRealtimeListeners();
             const myToken = bootstrapToken;
             SYNCED_COLLECTIONS.forEach(name => {
-                const unsub = collRefs[name].onSnapshot(snap => {
+                let first = true;
+                // [v2.4] includeMetadataChanges: オフライン起動後に電波が戻ったとき、
+                //   データに変化がなくても「サーバーで確認できた」ことを受け取るため
+                const unsub = collRefs[name].onSnapshot({ includeMetadataChanges: true }, snap => {
                     if (myToken !== bootstrapToken) return;
-                    let arr = [];
-                    snap.forEach(d => arr.push(d.data()));
-                    if (ORDERED_COLLECTIONS.has(name)) arr = sortByOrder(arr);
-                    const baseMap = lastSyncedMaps[name];
-                    const hasPendingLocal = localDirty || syncInFlight > 0;
-                    const nextArr = hasPendingLocal ? mergeRemoteWithLocal(name, arr, baseMap) : arr;
-                    lastSyncedMaps[name] = buildJsonMap(arr);
-                    state[name] = nextArr;
-                    ensureMinimumSettings();
-                    saveLocalOnly();
-                    persistSyncMeta();
-                    refreshCurrentView();
-                    if (hasPendingLocal && !syncDebounceTimer && syncInFlight === 0) syncToCloud();
+                    const fromCache = Boolean(snap.metadata && snap.metadata.fromCache);
+                    // 状態情報だけの変化（送信完了・オンライン復帰など）は、データを読み直さない
+                    const contentChanged = first || snap.docChanges().length > 0;
+                    first = false;
+                    if (contentChanged) {
+                        let arr = [];
+                        snap.forEach(d => arr.push(d.data()));
+                        if (ORDERED_COLLECTIONS.has(name)) arr = sortByOrder(arr);
+                        const baseMap = lastSyncedMaps[name];
+                        const hasPendingLocal = localDirty || syncInFlight > 0;
+                        const nextArr = hasPendingLocal ? mergeRemoteWithLocal(name, arr, baseMap) : arr;
+                        lastSyncedMaps[name] = buildJsonMap(arr);
+                        state[name] = nextArr;
+                        ensureMinimumSettings();
+                        saveLocalOnly();
+                        persistSyncMeta();
+                        refreshCurrentView();
+                        if (hasPendingLocal && !syncDebounceTimer && syncInFlight === 0) syncToCloud();
+                    }
+                    // [v2.4] サーバーの内容を state に反映した「後」で確認済みにする
+                    //   （先に確認済みにすると、古い定期支出のまま自動追加が走ってしまう）
+                    if (!fromCache && !serverConfirmed.has(name)) {
+                        serverConfirmed.add(name);
+                        onServerConfirmationProgress();
+                    }
                 }, err => {
                     console.error(`${name} のリアルタイム同期監視でエラー:`, err);
+                    if (myToken !== bootstrapToken) return;
+                    if (isPermissionError(err)) { handlePermissionDenied(); return; }
+                    // [v2.4] 監視はエラーで止まるため、初期化からやり直す
+                    if (currentUid && cloudReady) {
+                        pendingBootstrapUid = currentUid;
+                        cloudReady = false;
+                        detachRealtimeListeners();
+                        scheduleSyncRecovery();
+                    }
                     setSyncBadge('error', err.message);
                 });
                 snapshotUnsubs.push(unsub);
@@ -3136,6 +3212,7 @@
             detachRealtimeListeners();
             cloudReady = false;
             currentUid = uid;
+            serverConfirmed = new Set();
             collRefs = {};
             SYNCED_COLLECTIONS.forEach(name => { collRefs[name] = db.collection('users').doc(uid).collection(name); });
 
@@ -3148,6 +3225,7 @@
             const sameAccount = Boolean(meta && meta.uid === uid);
             const otherAccount = Boolean(meta && meta.uid !== uid);
             const anyFromCache = SYNCED_COLLECTIONS.some(name => snaps[name].metadata && snaps[name].metadata.fromCache);
+            SYNCED_COLLECTIONS.forEach(name => { if (!(snaps[name].metadata && snaps[name].metadata.fromCache)) serverConfirmed.add(name); });
             const remoteTotallyEmpty = SYNCED_COLLECTIONS.every(name => snaps[name].empty);
             // キャッシュからの読み込み（オフライン）や、クラウドが丸ごと空の場合は「リモートで削除された」と判断しない（安全側）
             const canPrune = sameAccount && !anyFromCache && !remoteTotallyEmpty;
@@ -3193,11 +3271,85 @@
             saveLocalOnly();
             persistSyncMeta();
             cloudReady = true;
+            pendingBootstrapUid = null;
             attachRealtimeListeners();
             refreshCurrentView();
-            setSyncBadge('ok');
+            setSyncBadge(isServerConfirmed() ? 'ok' : 'offline');
             // 初期化中に入力された変更があれば送る
             syncToCloud();
+            // サーバーから読めていれば、定期支出の自動追加を許可する（キャッシュだけのときは保留）
+            onServerConfirmationProgress();
+        }
+
+        function isServerConfirmed() {
+            return SYNCED_COLLECTIONS.every(name => serverConfirmed.has(name));
+        }
+        // [v2.4] オフライン起動（キャッシュの古いデータ）で定期支出を自動追加すると、
+        //   他の端末で削除済みの記録が同じIDで作り直され、次の同期で復活してしまう。
+        //   そこで、全コレクションをサーバーで確認できるまで自動追加を保留する。
+        function onServerConfirmationProgress() {
+            if (!cloudReady || !isServerConfirmed()) return;
+            if (!fixedProcessingAllowed) allowFixedProcessing();
+            if (!syncFailed && !localDirty && syncInFlight === 0 && !syncDebounceTimer) setSyncBadge('ok');
+        }
+
+        function isPermissionError(e) { return Boolean(e && e.code === 'permission-denied'); }
+        let permissionHandled = false;
+        async function handlePermissionDenied() {
+            if (permissionHandled) return;
+            permissionHandled = true;
+            resetCloudState();
+            try { await auth.signOut(); } catch (e) {}
+            showAlert('このアカウントにはFirestoreへのアクセス権限がありません。Firebaseコンソールのセキュリティルールをご確認ください。');
+            setTimeout(() => { permissionHandled = false; }, 3000);
+        }
+
+        // [v2.4] 同期の自動復帰
+        //   ・初期化の失敗 → 初期化をやり直す
+        //   ・送信の失敗   → 未送信の変更を送り直す
+        //   時間の間隔を広げながら再試行し、電波が戻ったとき・アプリを開き直したときはすぐに試す
+        function scheduleSyncRecovery() {
+            clearTimeout(recoveryTimer);
+            const delay = Math.min(RECOVERY_BASE_MS * Math.pow(2, recoveryAttempt), RECOVERY_MAX_MS);
+            recoveryAttempt++;
+            recoveryTimer = setTimeout(() => { recoveryTimer = null; attemptSyncRecovery(); }, delay);
+        }
+        async function runBootstrap(uid) {
+            bootstrapInFlight++;
+            try {
+                await bootstrapCloudSync(uid);
+                if (currentUid === uid && cloudReady) {
+                    recoveryAttempt = 0;
+                    clearTimeout(recoveryTimer); recoveryTimer = null;
+                }
+            } catch (e) {
+                console.error('クラウド同期の初期化失敗:', e);
+                if (isPermissionError(e)) { handlePermissionDenied(); return; }
+                const user = auth && auth.currentUser;
+                if (!user || user.uid !== uid) return; // 途中でログアウト・切り替えがあった
+                pendingBootstrapUid = uid;
+                scheduleSyncRecovery();
+                setSyncBadge('error', e && e.message);
+            } finally {
+                bootstrapInFlight--;
+            }
+        }
+        function attemptSyncRecovery() {
+            if (!firebaseAvailable || !auth) return;
+            const user = auth.currentUser;
+            if (!user) { pendingBootstrapUid = null; return; }
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                // 電波がないときは待つ（'online' イベントで再開）
+                setSyncBadge('offline');
+                return;
+            }
+            if (pendingBootstrapUid === user.uid && !cloudReady) {
+                if (bootstrapInFlight > 0) return;
+                setSyncBadge('syncing');
+                runBootstrap(user.uid);
+            } else if (cloudReady && (syncFailed || localDirty) && syncInFlight === 0) {
+                doSyncNow();
+            }
         }
 
         // [修正] ログアウト時にリアルタイム監視を確実に解除し、同期状態をリセットする
@@ -3207,6 +3359,9 @@
             clearTimeout(syncDebounceTimer); syncDebounceTimer = null;
             cloudReady = false; collRefs = {}; currentUid = null;
             localDirty = false;
+            pendingBootstrapUid = null; syncFailed = false;
+            clearTimeout(recoveryTimer); recoveryTimer = null; recoveryAttempt = 0;
+            serverConfirmed = new Set();
             SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = new Map(); });
         }
 
@@ -3242,11 +3397,26 @@
             }
         }
 
+        function isStandaloneApp() {
+            try {
+                return Boolean(window.navigator.standalone) ||
+                    (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches);
+            } catch (e) { return false; }
+        }
+
         if (firebaseAvailable) {
             document.getElementById('btn-google-signin').addEventListener('click', async () => {
                 const statusEl = document.getElementById('auth-gate-status');
                 statusEl.textContent = 'ログイン中…';
                 const provider = new firebase.auth.GoogleAuthProvider();
+                // [v2.4] ホーム画面に追加したアプリ（standalone）ではポップアップが戻ってこないため、
+                //   authDomain をアプリと同じドメインにできている場合はリダイレクト方式を使う
+                if (AUTH_ON_SAME_ORIGIN && isStandaloneApp()) {
+                    statusEl.textContent = 'ログイン画面に移動しています…';
+                    try { await auth.signInWithRedirect(provider); }
+                    catch (err) { statusEl.textContent = 'ログインに失敗しました: ' + (err.message || '認証エラー'); }
+                    return;
+                }
                 try {
                     await auth.signInWithPopup(provider);
                 } catch (err) {
@@ -3281,21 +3451,10 @@
                     if (emailLbl) emailLbl.textContent = user.email || user.displayName || 'ログイン中';
                     updateSyncPanelUI('signedin');
                     document.getElementById('lbl-sync-detail').textContent = '同期中…';
-                    try {
-                        await bootstrapCloudSync(user.uid);
-                        if (cloudReady) document.getElementById('lbl-sync-detail').textContent = '正常に同期されています';
-                    } catch (e) {
-                        console.error('クラウド同期の初期化失敗:', e);
-                        if (e && e.code === 'permission-denied') {
-                            resetCloudState();
-                            await auth.signOut();
-                            showAlert('このアカウントにはFirestoreへのアクセス権限がありません。Firebaseコンソールのセキュリティルールをご確認ください。');
-                        } else {
-                            setSyncBadge('error', e.message);
-                        }
-                    }
-                    // [修正] 定期支出の自動追加は、クラウドの最新状態を読み込んでから行う（端末間での重複・削除済みの復活を防ぐ）
-                    allowFixedProcessing();
+                    // [v2.4] ログイン中は、サーバーの最新状態を確認できるまで定期支出の自動追加を保留する
+                    //   （確認できた時点で onServerConfirmationProgress から allowFixedProcessing が呼ばれる）
+                    fixedProcessingAllowed = false;
+                    await runBootstrap(user.uid);
                 } else {
                     resetCloudState();
                     document.getElementById('auth-gate-status').textContent = '';
@@ -3312,9 +3471,18 @@
         // アプリを閉じる・裏に回す直前に、未送信の変更を送る
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') { flushSync().catch(() => {}); }
-            else { checkFixedExpensesDateChange(); }
+            else {
+                checkFixedExpensesDateChange();
+                // [v2.4] アプリを開き直したとき、止まっている同期があればすぐに再試行する
+                if (pendingBootstrapUid || syncFailed) { recoveryAttempt = 0; attemptSyncRecovery(); }
+            }
         });
         window.addEventListener('pagehide', () => { flushSync().catch(() => {}); });
+        // [v2.4] 電波が戻ったら、止まっている同期をすぐに再試行する
+        window.addEventListener('online', () => {
+            if (pendingBootstrapUid || syncFailed) { recoveryAttempt = 0; attemptSyncRecovery(); }
+        });
+        window.addEventListener('offline', () => { if (cloudReady || pendingBootstrapUid) setSyncBadge('offline'); });
 
         // アプリ起動
         initData();
