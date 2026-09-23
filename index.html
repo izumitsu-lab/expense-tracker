@@ -2,13 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Expense Tracker</title>
     <link rel="icon" type="image/png" href="favicon-32.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <!-- ホーム画面に追加して使うための設定（オフライン起動・Safari のデータ自動削除対策） -->
     <link rel="manifest" href="manifest.webmanifest">
-    <meta name="theme-color" content="#F2F2F7">
+    <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="color-scheme" content="light dark">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -183,7 +185,7 @@
                 <div class="flex items-center gap-2 mb-2.5">
                     <div class="relative flex-1 flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5 transition-colors focus-within:bg-[rgba(142,142,147,0.18)] min-w-0">
                         <svg class="w-3.5 h-3.5 text-gray-400 shrink-0 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                        <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="キーワードで絞り込み" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
+                        <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="検索" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
                         <button id="btn-clear-search" aria-label="検索をクリア" onclick="clearCalSearch()" class="hidden text-gray-400 p-0.5 hover:text-gray-600 active:opacity-70 shrink-0">
                             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
                         </button>
@@ -805,6 +807,16 @@
 
     </div>
 
-    <script src="app.js"></script>
+    <!-- アプリ本体（v2.8 で1つの app.js を役割ごとに分けた。この順番で読み込む） -->
+    <script src="js/core.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/history.js"></script>
+    <script src="js/stats.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/sync.js"></script>
+    <script src="js/keyboard.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>

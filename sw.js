@@ -2,12 +2,16 @@
  * - アプリ本体（HTML/JS/CSS）は「ネット優先・つながらなければ保存済みを使う」
  *   → 更新したファイルは次に開いたときに反映され、古い版が居座りにくい
  * - Firebase SDK（バージョン固定URL）は保存済みを優先
+ *   [v2.8] 中身を確認できる形（CORS）で取得し、正常な応答（200）だけを保存する。
+ *          以前は中身を確認できない形（no-cors）で保存していたため、エラーの応答でも保存・使用されることがあった。
  * - Firestore / ログインなどの通信には一切関与しない（同期の仕組みはそのまま）
  */
-const CACHE_NAME = 'kakeibo-cache-v2.7.0';
+const CACHE_NAME = 'kakeibo-cache-v2.8.0';
 const APP_SHELL = [
-  './', './index.html', './styles.css', './tailwind.css', './app.js',
-  './vendor/Sortable.min.js', './manifest.webmanifest', './favicon-32.png', './apple-touch-icon.png'
+  './', './index.html', './styles.css', './tailwind.css',
+  './js/core.js', './js/storage.js', './js/ui.js', './js/input.js', './js/history.js', './js/stats.js', './js/settings.js', './js/sync.js', './js/keyboard.js', './js/main.js',
+  './vendor/Sortable.min.js', './manifest.webmanifest', './favicon-32.png', './apple-touch-icon.png',
+  './icon-192.png', './icon-512.png', './icon-maskable-512.png'
 ];
 const CDN_ASSETS = [
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
@@ -16,13 +20,20 @@ const CDN_ASSETS = [
 ];
 const NETWORK_TIMEOUT_MS = 4000;
 
+// CDN のファイルを、中身を確認できる形で取得する（正常な応答のときだけ返す）
+async function fetchCdnOk(url) {
+  const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-cache' });
+  if (!res || !res.ok || res.type === 'opaque') throw new Error('CDN response not ok: ' + (res && res.status));
+  return res;
+}
+
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     // 1つ取れなくてもインストール自体は失敗させない
     await Promise.all(APP_SHELL.map(url => cache.add(new Request(url, { cache: 'reload' })).catch(() => {})));
     await Promise.all(CDN_ASSETS.map(async url => {
-      try { const res = await fetch(url, { mode: 'no-cors' }); await cache.put(url, res); } catch (e) {}
+      try { const res = await fetchCdnOk(url); await cache.put(url, res); } catch (e) {}
     }));
     await self.skipWaiting();
   })());
@@ -56,13 +67,19 @@ async function networkFirst(request) {
   }
 }
 
-async function cacheFirst(request) {
+async function cacheFirstCdn(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request.url);
-  if (cached) return cached;
-  const res = await fetch(request);
-  cache.put(request.url, res.clone()).catch(() => {});
-  return res;
+  // 以前の版が保存した「中身を確認できない応答」は使わずに取り直す
+  if (cached && cached.type !== 'opaque') return cached;
+  try {
+    const res = await fetchCdnOk(request.url);
+    cache.put(request.url, res.clone()).catch(() => {});
+    return res;
+  } catch (e) {
+    if (cached) return cached;
+    return fetch(request); // 保存はしない（ブラウザの通常の読み込みと同じ）
+  }
 }
 
 self.addEventListener('fetch', event => {
@@ -75,7 +92,7 @@ self.addEventListener('fetch', event => {
     return;
   }
   if (url.origin === 'https://www.gstatic.com' && url.pathname.startsWith('/firebasejs/10.14.1/')) {
-    event.respondWith(cacheFirst(req));
+    event.respondWith(cacheFirstCdn(req));
   }
   // それ以外（Firestore・Google ログイン等）は素通し
 });

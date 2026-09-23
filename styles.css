@@ -199,7 +199,7 @@
         }
         .shortcut-card:active { transform: scale(0.92); background-color: #F8F8F9; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
 
-        #swipe-container { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+        #swipe-container { touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
         select.ios-input { direction: rtl; }
         select.ios-input option { direction: ltr; }
 
@@ -380,3 +380,120 @@
             transition: transform 0.1s, background 0.1s;
         }
         .undo-toast .undo-toast-btn:active { transform: scale(0.95); background: rgba(10, 132, 255, 0.4); }
+
+        /* ---------- v2.8 画面の拡大（ピンチ操作）を許可 ----------
+         * 以前は viewport の maximum-scale=1 / user-scalable=no で拡大を禁止していた（Android では実際に拡大できなかった）。
+         * iPhone は、文字の大きさが 16px 未満の入力欄に触れると画面を自動で拡大するため、入力欄はすべて 16px 以上にする。
+         * ダブルタップでの拡大は、ボタンを素早く押したときの誤動作になるため止める（ピンチ操作の拡大はできる）。
+         */
+        html { touch-action: manipulation; }
+        #inp-cal-search, #inp-stats-shop-search { font-size: 16px; }
+        #inp-cal-search { line-height: 19.5px; height: 19.5px; padding: 0; }  /* 検索欄の高さは従来のまま */
+        input, select, textarea { font-size: max(16px, 1em); }
+
+        /* ---------- v2.8 文字のコントラスト（読みやすさの基準 WCAG AA：4.5:1 以上） ----------
+         * 見た目の配色は変えずに、薄すぎた文字色だけを少し濃くする。
+         *   灰色（補足文字）  #9CA3AF 2.5:1 → #6C6C70 5.2:1（白地） / 4.7:1（薄い灰色の地）
+         *   灰色（説明文）    #6B7280 4.8:1 → #636366 6.0:1
+         *   値の表示（右寄せ）#8E8E93 3.3:1 → #6C6C70 5.2:1
+         *   青（文字）        #007AFF 4.0:1 → #0066D6 5.4:1   ※ボタンの背景色は従来どおり
+         *   赤（文字）        #FF3B30 3.6:1 → #D70015 5.4:1   ※バッジの背景色は従来どおり
+         *   緑（文字）        #34C759 2.2:1 → #1E7B34 5.3:1
+         * tailwind.css より後に効かせるため、html を付けて優先度を上げている。
+         */
+        :root { --ios-gray: #6C6C70; --ios-text-blue: #0066D6; --ios-text-red: #D70015; --ios-text-green: #1E7B34; }
+        html .text-gray-400 { color: #6C6C70; }
+        html .text-gray-500 { color: #636366; }
+        html .text-\[\#007AFF\] { color: var(--ios-text-blue); }
+        html .text-\[\#FF3B30\] { color: var(--ios-text-red); }
+        html .text-\[\#34C759\] { color: var(--ios-text-green); }
+        html .placeholder-gray-400::placeholder, html input::placeholder, html textarea::placeholder { color: #737378; }
+        html .sort-icon-btn.active, html .today-icon-btn { color: var(--ios-text-blue); }
+        html .drag-handle { color: #8E8E93; } /* 操作できる印（アイコン）は 3:1 以上 */
+        html .empty-zone { color: #636366; }
+        /* 白い文字をのせる青・赤の地（小さな文字のボタンやバッジ）は、地の色を少し濃くする（グラフの棒などは従来の色） */
+        html .bg-\[\#007AFF\].text-white, html .time-pill.active, html .time-grid-btn.active, html .filter-pill.active { background-color: #0066D6; }
+        html .filter-pill.active { border-color: #0066D6; }
+        html .bg-\[\#FF3B30\].text-white { background-color: #D70015; }
+        html .today-icon-btn { color: #0058BA; }
+
+        /* ---------- v2.8 キーボード操作：選択中の部品に枠を出す（タッチ操作では出ない） ---------- */
+        :focus-visible { outline: 3px solid #0066D6; outline-offset: 2px; }
+        .ios-item:focus-visible, .ios-item.clickable:focus-visible { outline-offset: -3px; }
+        .nav-link:focus-visible { border-radius: 12px; }
+        [role="button"] { cursor: pointer; }
+
+        /* ==================== v2.8 ダークモード ====================
+         * 端末の設定（外観モード）に合わせて自動で切り替わる。色は iOS のダークモードに合わせている。
+         *   画面の地 #000000 / カード #1C1C1E / カードの中の枠 #2C2C2E / 押したとき #3A3A3C
+         *   文字 #FFFFFF / 補足 #A1A1A6・#AEAEB2 / 青 #409CFF / 赤 #FF6961 / 緑 #30D158（いずれも 4.5:1 以上）
+         * tailwind.css の色の指定を html 付きで上書きしている。
+         */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                color-scheme: dark;
+                --ios-bg: #000000; --ios-card: #1C1C1E; --ios-text: #FFFFFF; --ios-gray: #A1A1A6;
+                --ios-border: rgba(84, 84, 88, 0.65);
+                --ios-text-blue: #409CFF; --ios-text-red: #FF6961; --ios-text-green: #30D158;
+            }
+            body { background-color: #000000; color: #FFFFFF; }
+            .app-container { box-shadow: none; }
+
+            /* 地の色 */
+            html .bg-white { background-color: #1C1C1E; }
+            html .bg-\[\#F2F2F7\], html .bg-gray-50, html .bg-gray-100 { background-color: #2C2C2E; }
+            html .modal-sheet.bg-\[\#F2F2F7\], html .modal-sheet { background-color: #000000; }
+            html .bg-gray-300 { background-color: #48484A; }
+            html .bg-red-50 { background-color: rgba(255, 69, 58, 0.16); }
+            html .bg-\[rgba\(60\2c 60\2c 67\2c 0\.06\)\], html .bg-\[rgba\(60\2c 60\2c 67\2c 0\.08\)\] { background-color: rgba(255, 255, 255, 0.09); }
+            html .bg-\[rgba\(118\2c 118\2c 128\2c 0\.12\)\] { background-color: rgba(118, 118, 128, 0.24); }
+            html .bg-\[rgba\(142\2c 142\2c 147\2c 0\.12\)\] { background-color: rgba(142, 142, 147, 0.24); }
+            html [id$="-seg-indicator"], html .bg-white.text-black.shadow { background-color: #636366; }
+            html .active\:bg-gray-50:active, html .active\:bg-gray-100:active { background-color: #3A3A3C; }
+            html .active\:bg-red-50:active { background-color: rgba(255, 69, 58, 0.22); }
+
+            /* 文字の色 */
+            html .text-gray-900, html .text-gray-800, html .text-gray-700, html .text-black, html .text-\[\#1C1C1E\] { color: #FFFFFF; }
+            html .text-gray-600 { color: #D1D1D6; }
+            html .text-gray-500 { color: #AEAEB2; }
+            html .text-gray-400 { color: #A1A1A6; }
+            html .text-red-500 { color: var(--ios-text-red); }
+            html .placeholder-gray-400::placeholder, html input::placeholder, html textarea::placeholder { color: #8E8E93; }
+
+            /* 線の色 */
+            html .border-\[rgba\(0\2c 0\2c 0\2c 0\.03\)\], html .border-\[rgba\(0\2c 0\2c 0\2c 0\.04\)\], html .border-\[rgba\(0\2c 0\2c 0\2c 0\.05\)\] { border-color: rgba(255, 255, 255, 0.06); }
+            html .border-\[rgba\(60\2c 60\2c 67\2c 0\.06\)\], html .border-\[rgba\(60\2c 60\2c 67\2c 0\.08\)\], html .border-\[rgba\(60\2c 60\2c 67\2c 0\.1\)\] { border-color: rgba(84, 84, 88, 0.5); }
+            html .border-\[rgba\(60\2c 60\2c 67\2c 0\.15\)\], html .border-\[rgba\(60\2c 60\2c 67\2c 0\.2\)\] { border-color: rgba(84, 84, 88, 0.7); }
+            html .border-\[\#F2F2F7\] { border-color: #000000; }
+
+            /* 部品ごとの色（styles.css で色を直接書いている部品） */
+            .glass-nav { background: rgba(22, 22, 24, 0.86); }
+            .btn-global-add { border-color: #000000; }
+            .numpad-btn { background: #1C1C1E; color: #FFFFFF; box-shadow: none; }
+            .numpad-btn.transparent { background: transparent; }
+            .numpad-btn:active { background-color: #3A3A3C; }
+            .class-btn { box-shadow: none; }
+            .class-btn:active, .shortcut-card:active { background-color: #2C2C2E; }
+            .class-btn-text { color: #FFFFFF; }
+            .shortcut-card { box-shadow: none; }
+            .ios-item.clickable:active { background-color: #2C2C2E; }
+            .drag-handle { color: #8E8E93; }
+            html .empty-zone { background-color: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); color: #AEAEB2; }
+            .dialog-box { background: rgba(44, 44, 46, 0.96); }
+            .dialog-box .text-black { color: #FFFFFF; }
+            .dialog-btn:active { background: #3A3A3C; }
+            .action-sheet { background: rgba(28, 28, 30, 0.97); box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5); }
+            .action-sheet-backdrop, .overlay { background: rgba(0, 0, 0, 0.55); }
+            .filter-pill { background: #1C1C1E; color: #FFFFFF; border-color: rgba(84, 84, 88, 0.6); box-shadow: none; }
+            .filter-pill:active { background: #2C2C2E; }
+            .sort-icon-btn { background: rgba(142, 142, 147, 0.24); color: #D1D1D6; }
+            html .today-icon-btn { background: rgba(10, 132, 255, 0.2); color: #409CFF; }
+            .time-pill, .time-grid-btn { background: rgba(142, 142, 147, 0.24); color: #FFFFFF; }
+            .shop-picker-card { border-color: rgba(84, 84, 88, 0.5); }
+            .shop-picker-card:active { background: #2C2C2E; }
+            .shop-picker-card.active { background: rgba(10, 132, 255, 0.16); border-color: #409CFF; }
+            .ios-switch .slider { background-color: rgba(120, 120, 128, 0.36); }
+            .undo-toast { background: rgba(44, 44, 46, 0.97); }
+            .undo-toast .undo-toast-btn { color: #8AC4FF; }
+            :focus-visible { outline-color: #409CFF; }
+        }

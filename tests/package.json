@@ -1,0 +1,18 @@
+{
+  "name": "kakeibo-tests",
+  "private": true,
+  "description": "家計簿アプリの自動テスト（模擬 Firebase + jsdom、実際のブラウザ）",
+  "scripts": {
+    "test": "node fixes.test.js && node storage.test.js && node sync.test.js",
+    "test:fixes": "node fixes.test.js",
+    "test:storage": "node storage.test.js",
+    "test:sync": "node sync.test.js",
+    "test:browser": "node keyboard.browser.js && node sw.browser.js && node screens.browser.js"
+  },
+  "devDependencies": {
+    "axe-core": "^4.13.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^24.1.3",
+    "playwright": "^1.63.0"
+  }
+}
