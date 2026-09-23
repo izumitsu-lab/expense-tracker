@@ -1,5 +1,5 @@
         /* =====================================================================
-         * 家計簿アプリ app.js  —  v2.6（差分同期：前回以降に変わった分だけ読む / 2026-09-23）
+         * 家計簿アプリ app.js  —  v2.7（v2.6 ＋ 支払い方法の自動更新・お店の紐付け・同名チェック・複数件の取り消し・着地予測の修正 / 2026-09-23）
          * 修正内容の一覧は同梱の「修正内容.md」を参照。
          * 同期サーバー（Firestore）のデータ構造・コレクション名は旧版から変更なし。
          * ===================================================================== */
@@ -255,10 +255,12 @@
          */
         function findShopById(id) { return id ? (state.shops.find(s => s.id === id) || null) : null; }
         // 名前（＋分類）からお店IDを探す。同名のお店が複数あって分類でも絞れない場合は '' を返す
-        function resolveShopIdByName(name, classId) {
+        //   strict: [v2.7] 分類が分かっている記録は、同じ分類のお店にだけ紐付ける
+        //   （記録のお店が削除済みで、別の分類に同じ名前のお店が1件だけある場合に、誤って紐付けないため）
+        function resolveShopIdByName(name, classId, strict = false) {
             if (!name) return '';
             let shop = state.shops.find(x => x.name === name && x.classId === classId);
-            if (!shop) { const cands = state.shops.filter(x => x.name === name); if (cands.length === 1) shop = cands[0]; }
+            if (!shop && !(strict && classId)) { const cands = state.shops.filter(x => x.name === name); if (cands.length === 1) shop = cands[0]; }
             return shop ? shop.id : '';
         }
         // 画面に出すお店の名前（お店が残っていれば最新の名前、削除済みなら記録時の名前）
@@ -297,7 +299,7 @@
                         if (shop && shop.name !== x.shopName) { x.shopName = shop.name; changed++; }
                         return; // お店が削除済みの場合は、記録時の名前とIDをそのまま残す
                     }
-                    const id = resolveShopIdByName(x.shopName, x.classId);
+                    const id = resolveShopIdByName(x.shopName, x.classId, true);
                     if (id) { x.shopId = id; changed++; }
                 });
             });
@@ -444,7 +446,7 @@
                                 classId: fe.classId,
                                 categoryId: fe.categoryId,
                                 shopName: shopDisplayName(fe),
-                                shopId: fe.shopId || resolveShopIdByName(fe.shopName, fe.classId),
+                                shopId: fe.shopId || resolveShopIdByName(fe.shopName, fe.classId, true),
                                 paymentId: fe.paymentId,
                                 memo: fe.memo || (isPending ? '定期支出 (金額未定)' : '定期支出'),
                                 isFixed: fe.isFixed === false ? false : true,
@@ -617,7 +619,7 @@
 
         window.exportData = async () => {
             const exportPayload = {
-                version: "2.6",
+                version: "2.7",
                 exportedAt: new Date().toISOString(),
                 ...state
             };
@@ -1114,7 +1116,8 @@
             } else {
                 state.transactions.push(newTxn);
             }
-            maybeAutoUpdateShopPayment(newTxn.shopId, newTxn.paymentId);
+            // [v2.7] 既定の支払い方法を更新するのは「新しく入力したとき」だけ（過去の記録の修正では変えない）
+            if (!editingTxnId) maybeAutoUpdateShopPayment(newTxn.shopId, newTxn.paymentId);
             saveData();
             closeAllModals(); 
             resetMainView(); 
@@ -1143,7 +1146,9 @@
          * 元に戻すと、削除した項目を同じIDで元の位置に戻す（クラウドにも同じIDで再保存される）。
          */
         const UNDO_DURATION_MS = 7000;
-        let undoEntry = null;
+        const UNDO_MAX_GROUPS = 20;
+        // [v2.7] 表示中に続けて削除した分は積み重ね、「元に戻す」でまとめて戻す（以前は直前の1件だけ）
+        let undoEntry = null;   // { groups: [[{ key, item, index }], ...], label }
         let undoTimer = null;
 
         function removeWithUndo(key, id, label) {
@@ -1158,12 +1163,17 @@
         }
 
         function offerUndo(label, entries) {
-            undoEntry = { entries };
+            if (undoEntry && undoEntry.groups.length < UNDO_MAX_GROUPS) {
+                undoEntry.groups.push(entries);
+            } else {
+                undoEntry = { groups: [entries], label };
+            }
             clearTimeout(undoTimer);
             const toast = document.getElementById('undo-toast');
             const msg = document.getElementById('undo-msg');
             if (!toast || !msg) return;
-            msg.textContent = label;
+            const count = undoEntry.groups.reduce((n, g) => n + g.length, 0);
+            msg.textContent = count > 1 ? `${count}件を削除しました` : label;
             toast.classList.add('active');
             undoTimer = setTimeout(hideUndoToast, UNDO_DURATION_MS);
         }
@@ -1177,13 +1187,15 @@
 
         function performUndo() {
             if (!undoEntry) return;
-            const entries = undoEntry.entries.slice().sort((a, b) => a.index - b.index);
             const keys = new Set();
-            entries.forEach(({ key, item, index }) => {
-                const arr = state[key] || (state[key] = []);
-                if (arr.some(x => x && x.id === item.id)) return; // 既に戻っている（他端末で再作成など）
-                arr.splice(Math.min(index, arr.length), 0, item);
-                keys.add(key);
+            // 後に削除したものから順に戻す（それぞれ削除した時点の位置に戻るため、元の並びが再現される）
+            undoEntry.groups.slice().reverse().forEach(group => {
+                group.slice().sort((a, b) => a.index - b.index).forEach(({ key, item, index }) => {
+                    const arr = state[key] || (state[key] = []);
+                    if (arr.some(x => x && x.id === item.id)) return; // 既に戻っている（他端末で再作成など）
+                    arr.splice(Math.min(index, arr.length), 0, item);
+                    keys.add(key);
+                });
             });
             hideUndoToast();
             if (keys.size === 0) return;
@@ -1824,6 +1836,13 @@
             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
             const daysElapsedThisMonth = Math.round((today - monthStart) / 86400000) + 1;
             const progressPct = Math.min(100, Math.round((daysElapsedThisMonth / daysInMonth) * 100));
+            // [v2.7] 月の途中から記録を始めた月は、記録を始めた日を起点に日割りする
+            //   （「今月の1日あたり」と同じ起点。月初から割ると、記録していない日の分だけ予測が低く出ていた）
+            const monthEndDate = new Date(today.getFullYear(), today.getMonth(), daysInMonth);
+            const forecastStart = (firstEverDate && firstEverDate > monthStart && firstEverDate <= today) ? firstEverDate : monthStart;
+            const forecastElapsedDays = Math.max(1, Math.round((today - forecastStart) / 86400000) + 1);
+            const forecastSpanDays = Math.max(forecastElapsedDays, Math.round((monthEndDate - forecastStart) / 86400000) + 1);
+            const forecastFromMidMonth = forecastStart > monthStart;
             // [修正] 固定費（家賃など）は日数で引き伸ばさず実額で計上し、変動費だけを日割りで外挿する。
             //   さらに、今月まだ追加されていない定期支出（今日より後の日付）は予定額として加える。
             let monthFixedSoFar = 0, monthVariableSoFar = 0;
@@ -1849,7 +1868,7 @@
                     catUpcomingFixed[fe.categoryId] = (catUpcomingFixed[fe.categoryId] || 0) + fe.amount;
                 });
             }
-            const projectedTotal = thisMonth ? Math.round((monthVariableSoFar / daysElapsedThisMonth) * daysInMonth + monthFixedSoFar + upcomingFixedTotal) : 0;
+            const projectedTotal = thisMonth ? Math.round((monthVariableSoFar / forecastElapsedDays) * forecastSpanDays + monthFixedSoFar + upcomingFixedTotal) : 0;
 
             // ---------- ③ 前月比・前年同月比（1日あたり） ----------
             const lastMonthEnd = new Date(monthStart); lastMonthEnd.setDate(monthStart.getDate() - 1);
@@ -1936,7 +1955,7 @@
                 // [修正] 着地予測と同じく、固定費は実額＋予定額、変動費のみ日割りで外挿
                 const varPart = catVariableSoFar[catId] || 0;
                 const fixedPart = (catFixedSoFar[catId] || 0) + (catUpcomingFixed[catId] || 0);
-                const projectedCurrent = daysElapsedThisMonth > 0 ? (varPart / daysElapsedThisMonth) * daysInMonth + fixedPart : 0;
+                const projectedCurrent = (varPart / forecastElapsedDays) * forecastSpanDays + fixedPart;
                 if (currentTotal === 0 && fixedPart === 0 && baselineTotal === 0) return;
                 const baselineMonthlyAvg = baselineTotal / baselineMonthsCountForCat;
                 const diffAmount = projectedCurrent - baselineMonthlyAvg;
@@ -2038,6 +2057,7 @@
                         <span class="text-[26px] font-black text-gray-900 tracking-tight leading-none">¥${projectedTotal.toLocaleString()}</span>
                         <span class="text-[11px] font-semibold text-gray-400">予測（現在 ¥${(thisMonth ? thisMonth.total : 0).toLocaleString()}）</span>
                     </div>
+                    ${forecastFromMidMonth ? `<div class="text-[11px] font-semibold text-gray-500 mt-2">※ 記録を始めた ${forecastStart.getMonth() + 1}/${forecastStart.getDate()} からの分で予測しています</div>` : ''}
                     ${pendingThisMonth > 0 ? `<div class="text-[11px] font-semibold text-[#FF3B30] mt-2">※ 金額未定の記録 ${pendingThisMonth}件 は含まれていません</div>` : ''}
                 </div>
 
@@ -2828,6 +2848,14 @@
         window.saveShopEditor = () => {
             const name = document.getElementById('ed-shop-name').value.trim(); 
             if (!name) { showAlert("店名を入力してください"); return; }
+            // [v2.7] 同じ分類に同じ名前のお店を作らない（記録がどちらのお店か分からなくなるため）
+            const classIdVal = document.getElementById('ed-shop-class').value;
+            const dup = state.shops.find(x => x.id !== editingShopId && x.classId === classIdVal && (x.name || '').trim() === name);
+            if (dup) {
+                const cls = state.shopClasses.find(c => c.id === classIdVal);
+                showAlert(`「${cls ? cls.name : 'この分類'}」には同じ名前のお店「${name}」がすでにあります。別の名前にしてください。`);
+                return;
+            }
             const newShop = { id: editingShopId || generateId(), name: name, classId: document.getElementById('ed-shop-class').value, categoryId: document.getElementById('ed-shop-cat').value, paymentId: document.getElementById('ed-shop-pay').value, memo: document.getElementById('ed-shop-memo').value.trim() };
             let renamedCount = 0;
             if (editingShopId) {
