@@ -1,5 +1,5 @@
         /* =====================================================================
-         * 家計簿アプリ app.js  —  v2.4（表示の安全化・同期の自動復帰・ログイン対策・オフライン起動時の定期支出保留 / 2026-09-23）
+         * 家計簿アプリ app.js  —  v2.5（v2.4 ＋ 起動時の読み取り量の削減 / 2026-09-23）
          * 修正内容の一覧は同梱の「修正内容.md」を参照。
          * 同期サーバー（Firestore）のデータ構造・コレクション名は旧版から変更なし。
          * ===================================================================== */
@@ -617,7 +617,7 @@
 
         window.exportData = async () => {
             const exportPayload = {
-                version: "2.4",
+                version: "2.5",
                 exportedAt: new Date().toISOString(),
                 ...state
             };
@@ -3150,43 +3150,30 @@
             snapshotUnsubs = [];
         }
 
-        function attachRealtimeListeners() {
+        // [v2.5] リアルタイム監視（コレクションごと）
+        //   起動時の全件読み込み（get）をやめ、この監視の最初の結果で初期化する。
+        //   以前は「get で全件」＋「監視の開始でもう一度全件」と、起動のたびに全件を2回読んでいた。
+        let listenerState = {};   // name -> { latest: 最新の結果, used: state に反映済みの結果 }
+        let bootWaiter = null;    // 初期化が最初の結果を待っている間だけ存在する
+        const INITIAL_SERVER_WAIT_MS = 10000; // サーバーの応答を待つ最長時間（超えたら端末内のコピーで始める）
+
+        function attachRealtimeListeners(myToken) {
             detachRealtimeListeners();
-            const myToken = bootstrapToken;
+            listenerState = {};
             SYNCED_COLLECTIONS.forEach(name => {
-                let first = true;
-                // [v2.4] includeMetadataChanges: オフライン起動後に電波が戻ったとき、
-                //   データに変化がなくても「サーバーで確認できた」ことを受け取るため
+                const ls = listenerState[name] = { latest: null, used: null };
+                // includeMetadataChanges: オフライン起動後に電波が戻ったとき、
+                //   データに変化がなくても「サーバーで確認できた」ことを受け取るため（読み取り回数は増えない）
                 const unsub = collRefs[name].onSnapshot({ includeMetadataChanges: true }, snap => {
                     if (myToken !== bootstrapToken) return;
-                    const fromCache = Boolean(snap.metadata && snap.metadata.fromCache);
-                    // 状態情報だけの変化（送信完了・オンライン復帰など）は、データを読み直さない
-                    const contentChanged = first || snap.docChanges().length > 0;
-                    first = false;
-                    if (contentChanged) {
-                        let arr = [];
-                        snap.forEach(d => arr.push(d.data()));
-                        if (ORDERED_COLLECTIONS.has(name)) arr = sortByOrder(arr);
-                        const baseMap = lastSyncedMaps[name];
-                        const hasPendingLocal = localDirty || syncInFlight > 0;
-                        const nextArr = hasPendingLocal ? mergeRemoteWithLocal(name, arr, baseMap) : arr;
-                        lastSyncedMaps[name] = buildJsonMap(arr);
-                        state[name] = nextArr;
-                        ensureMinimumSettings();
-                        saveLocalOnly();
-                        persistSyncMeta();
-                        refreshCurrentView();
-                        if (hasPendingLocal && !syncDebounceTimer && syncInFlight === 0) syncToCloud();
-                    }
-                    // [v2.4] サーバーの内容を state に反映した「後」で確認済みにする
-                    //   （先に確認済みにすると、古い定期支出のまま自動追加が走ってしまう）
-                    if (!fromCache && !serverConfirmed.has(name)) {
-                        serverConfirmed.add(name);
-                        onServerConfirmationProgress();
-                    }
+                    ls.latest = snap;
+                    // 初期化中は結果を溜めておき、初期化の統合処理に使う
+                    if (!cloudReady) { if (bootWaiter) bootWaiter.check(); return; }
+                    applySnapshot(name, snap, false);
                 }, err => {
                     console.error(`${name} のリアルタイム同期監視でエラー:`, err);
                     if (myToken !== bootstrapToken) return;
+                    if (!cloudReady && bootWaiter) { bootWaiter.fail(err); return; }
                     if (isPermissionError(err)) { handlePermissionDenied(); return; }
                     // [v2.4] 監視はエラーで止まるため、初期化からやり直す
                     if (currentUid && cloudReady) {
@@ -3201,6 +3188,72 @@
             });
         }
 
+        // 監視の結果を state に反映する（force: 差分の有無にかかわらず反映する）
+        function applySnapshot(name, snap, force) {
+            const ls = listenerState[name];
+            const fromCache = Boolean(snap.metadata && snap.metadata.fromCache);
+            // 状態情報だけの変化（送信完了・オンライン復帰など）は、データを読み直さない
+            const contentChanged = force || snap.docChanges().length > 0;
+            if (ls) ls.used = snap;
+            if (contentChanged) {
+                let arr = [];
+                snap.forEach(d => arr.push(d.data()));
+                if (ORDERED_COLLECTIONS.has(name)) arr = sortByOrder(arr);
+                const baseMap = lastSyncedMaps[name];
+                const hasPendingLocal = localDirty || syncInFlight > 0;
+                const nextArr = hasPendingLocal ? mergeRemoteWithLocal(name, arr, baseMap) : arr;
+                lastSyncedMaps[name] = buildJsonMap(arr);
+                state[name] = nextArr;
+                ensureMinimumSettings();
+                saveLocalOnly();
+                persistSyncMeta();
+                refreshCurrentView();
+                if (hasPendingLocal && !syncDebounceTimer && syncInFlight === 0) syncToCloud();
+            }
+            // [v2.4] サーバーの内容を state に反映した「後」で確認済みにする
+            //   （先に確認済みにすると、古い定期支出のまま自動追加が走ってしまう）
+            if (!fromCache && !serverConfirmed.has(name)) {
+                serverConfirmed.add(name);
+                onServerConfirmationProgress();
+            }
+        }
+
+        // 全コレクションの「最初の結果」がそろうのを待つ
+        //   ・サーバーの結果がそろえば、すぐに進む
+        //   ・電波がないとき、または一定時間サーバーが応答しないときは、端末内のコピー（キャッシュ）で進む
+        //     （このときは削除の判定と定期支出の自動追加を行わない ＝ 従来の get と同じ安全側の扱い）
+        function waitForInitialSnapshots(myToken) {
+            return new Promise((resolve, reject) => {
+                let done = false, timedOut = false, timer = null;
+                const latestOf = n => listenerState[n] && listenerState[n].latest;
+                const allArrived = () => SYNCED_COLLECTIONS.every(n => latestOf(n));
+                const allFromServer = () => SYNCED_COLLECTIONS.every(n => { const sn = latestOf(n); return sn && !(sn.metadata && sn.metadata.fromCache); });
+                const finish = err => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(timer);
+                    window.removeEventListener('offline', check);
+                    if (bootWaiter && bootWaiter.check === check) bootWaiter = null;
+                    if (err) reject(err); else resolve();
+                };
+                function check() {
+                    if (myToken !== bootstrapToken) return finish(); // 新しい初期化・ログアウトに置き換わった
+                    if (allFromServer()) return finish();
+                    const offline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+                    if ((offline || timedOut) && allArrived()) return finish();
+                    if (timedOut) {
+                        const e = new Error('同期データを読み込めませんでした（通信がタイムアウトしました）');
+                        e.code = 'unavailable';
+                        return finish(e);
+                    }
+                }
+                bootWaiter = { check, fail: finish };
+                timer = setTimeout(() => { timedOut = true; check(); }, INITIAL_SERVER_WAIT_MS);
+                window.addEventListener('offline', check);
+                check();
+            });
+        }
+
         // 時間帯・クイック時刻が空にならないようにする（旧 initData と同じ保証）
         function ensureMinimumSettings() {
             if (!state.timeSlots || state.timeSlots.length === 0) state.timeSlots = JSON.parse(JSON.stringify(DEFAULT_STATE.timeSlots));
@@ -3209,6 +3262,7 @@
 
         async function bootstrapCloudSync(uid) {
             const myToken = ++bootstrapToken;
+            if (bootWaiter) bootWaiter.check(); // 前の初期化の待機を終わらせる
             detachRealtimeListeners();
             cloudReady = false;
             currentUid = uid;
@@ -3216,9 +3270,20 @@
             collRefs = {};
             SYNCED_COLLECTIONS.forEach(name => { collRefs[name] = db.collection('users').doc(uid).collection(name); });
 
-            const snaps = {};
-            await Promise.all(SYNCED_COLLECTIONS.map(async name => { snaps[name] = await collRefs[name].get(); }));
+            // [v2.5] get() で全件を読むのをやめ、リアルタイム監視の最初の結果を使う（読み取り回数が約半分になる）
+            attachRealtimeListeners(myToken);
+            try {
+                await waitForInitialSnapshots(myToken);
+            } catch (e) {
+                if (myToken === bootstrapToken) detachRealtimeListeners();
+                throw e;
+            }
             if (myToken !== bootstrapToken) return;
+            const snaps = {};
+            SYNCED_COLLECTIONS.forEach(name => {
+                snaps[name] = listenerState[name].latest;
+                listenerState[name].used = snaps[name];
+            });
 
             // この端末の同期記録（前回どのアカウントで、どのIDがクラウドにあったか）
             const meta = loadSyncMeta();
@@ -3255,9 +3320,9 @@
 
                 if (localOnly.length > 0 && ORDERED_COLLECTIONS.has(name)) {
                     merged = withOrder(merged, name);
-                    merged.forEach(item => ops.push({ type: 'set', ref: collRefs[name].doc(item.id), data: toFirestoreData(item) }));
+                    merged.forEach(item => ops.push({ type: 'set', coll: name, ref: collRefs[name].doc(item.id), data: toFirestoreData(item) }));
                 } else {
-                    localOnly.forEach(item => ops.push({ type: 'set', ref: collRefs[name].doc(item.id), data: toFirestoreData(item) }));
+                    localOnly.forEach(item => ops.push({ type: 'set', coll: name, ref: collRefs[name].doc(item.id), data: toFirestoreData(item) }));
                 }
 
                 state[name] = merged;
@@ -3265,14 +3330,34 @@
             });
             ensureMinimumSettings();
 
-            if (ops.length > 0) await commitOpsInChunks(ops);
+            if (ops.length > 0) {
+                if (!anyFromCache) {
+                    await commitOpsInChunks(ops);
+                } else {
+                    // [v2.5] オフライン（キャッシュ）で始めたときは、送信の完了（＝電波の回復）を待たずに使い始める。
+                    //   送信は Firestore が電波の回復後に行う。失敗したら未送信に戻して送り直す。
+                    commitOpsInChunks(ops).catch(e => {
+                        console.error('初期化時の送信エラー:', e);
+                        if (myToken !== bootstrapToken) return;
+                        ops.forEach(op => { if (op.coll && lastSyncedMaps[op.coll]) lastSyncedMaps[op.coll].delete(op.ref.id); });
+                        localDirty = true; syncFailed = true;
+                        if (isPermissionError(e)) { handlePermissionDenied(); return; }
+                        scheduleSyncRecovery();
+                        setSyncBadge('error', e.message);
+                    });
+                }
+            }
             if (myToken !== bootstrapToken) return;
 
             saveLocalOnly();
             persistSyncMeta();
             cloudReady = true;
             pendingBootstrapUid = null;
-            attachRealtimeListeners();
+            // 初期化の間に届いた新しい結果（自分の送信の反映・他の端末の変更）を反映する
+            SYNCED_COLLECTIONS.forEach(name => {
+                const ls = listenerState[name];
+                if (ls && ls.latest && ls.latest !== ls.used) applySnapshot(name, ls.latest, true);
+            });
             refreshCurrentView();
             setSyncBadge(isServerConfirmed() ? 'ok' : 'offline');
             // 初期化中に入力された変更があれば送る
@@ -3355,6 +3440,7 @@
         // [修正] ログアウト時にリアルタイム監視を確実に解除し、同期状態をリセットする
         function resetCloudState() {
             bootstrapToken++;
+            if (bootWaiter) bootWaiter.check(); // 初期化の待機を終わらせる
             detachRealtimeListeners();
             clearTimeout(syncDebounceTimer); syncDebounceTimer = null;
             cloudReady = false; collRefs = {}; currentUid = null;
