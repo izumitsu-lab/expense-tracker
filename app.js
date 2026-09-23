@@ -1,5 +1,5 @@
         /* =====================================================================
-         * 家計簿アプリ app.js  —  v2.2（点検修正版 / 2026-09-23）
+         * 家計簿アプリ app.js  —  v2.3（shopId移行・Undo対応 / 2026-09-23）
          * 修正内容の一覧は同梱の「修正内容.md」を参照。
          * 同期サーバー（Firestore）のデータ構造・コレクション名は旧版から変更なし。
          * ===================================================================== */
@@ -191,7 +191,7 @@
         let statsTab = 'trend';
         let trendChartMode = 'week';
         let statsCurrentDate = new Date(); statsCurrentDate.setHours(0,0,0,0);
-        let statsSelectedShopName = '';
+        let statsSelectedShopKey = '';
         let statsFixedFilter = 'all'; // 'all' | 'variable'
 
         function isFixedTxn(t) { return Boolean(t.isFixed || String(t.id).startsWith('fx_')); }
@@ -249,11 +249,66 @@
 
         // そのお店を実際に利用した際の支払い方法が、登録済みの既定の支払い方法と異なる場合、
         // 「最後に使った支払い方法を既定にする」がオンなら、お店の詳細設定を自動的に書き換える
-        function maybeAutoUpdateShopPayment(shopName, paymentId, classId) {
+        /* ==================== お店の参照（v2.3: shopId 方式） ====================
+         * 記録・定期支出・クイック入力は shopId（お店のID）でお店を参照する。
+         * 表示用・互換用に shopName（お店の名前）も引き続き保存する。
+         */
+        function findShopById(id) { return id ? (state.shops.find(s => s.id === id) || null) : null; }
+        // 名前（＋分類）からお店IDを探す。同名のお店が複数あって分類でも絞れない場合は '' を返す
+        function resolveShopIdByName(name, classId) {
+            if (!name) return '';
+            let shop = state.shops.find(x => x.name === name && x.classId === classId);
+            if (!shop) { const cands = state.shops.filter(x => x.name === name); if (cands.length === 1) shop = cands[0]; }
+            return shop ? shop.id : '';
+        }
+        // 画面に出すお店の名前（お店が残っていれば最新の名前、削除済みなら記録時の名前）
+        function shopDisplayName(obj) {
+            if (!obj) return '';
+            const shop = findShopById(obj.shopId);
+            return shop ? shop.name : (obj.shopName || '');
+        }
+        // 分析で同じお店をまとめるためのキー
+        function shopKeyOf(obj) {
+            if (!obj) return '';
+            if (obj.shopId) return 'id:' + obj.shopId;
+            return obj.shopName ? 'name:' + obj.shopName : '';
+        }
+        function shopKeyInfo(key) {
+            if (!key) return { name: '', icon: '🏪', className: '未分類', shop: null };
+            let shop = null, name = '';
+            if (key.startsWith('id:')) {
+                shop = findShopById(key.slice(3));
+                if (shop) name = shop.name;
+                else { const t = state.transactions.find(x => x.shopId === key.slice(3) && x.shopName); name = t ? t.shopName : '(削除されたお店)'; }
+            } else {
+                name = key.slice(5);
+            }
+            const cls = shop ? state.shopClasses.find(c => c.id === shop.classId) : null;
+            return { name, icon: (cls && cls.icon) || '🏪', className: cls ? cls.name : '未分類', shop };
+        }
+        // 既存データへの shopId 自動付与（起動時・同期の読み込み後に実行。何度実行しても結果は同じ）
+        function backfillShopIds() {
+            let changed = 0;
+            ['transactions', 'fixedExpenses', 'shortcuts'].forEach(key => {
+                (state[key] || []).forEach(x => {
+                    if (!x || !x.shopName) return;
+                    if (x.shopId) {
+                        const shop = findShopById(x.shopId);
+                        if (shop && shop.name !== x.shopName) { x.shopName = shop.name; changed++; }
+                        return; // お店が削除済みの場合は、記録時の名前とIDをそのまま残す
+                    }
+                    const id = resolveShopIdByName(x.shopName, x.classId);
+                    if (id) { x.shopId = id; changed++; }
+                });
+            });
+            if (changed > 0) saveData();
+            return changed;
+        }
+
+        function maybeAutoUpdateShopPayment(shopId, paymentId) {
             if (!state.autoUpdateShopPayment) return;
-            if (!shopName || !paymentId) return;
-            // [修正] 同じ名前のお店が別の分類にある場合に、違うお店を書き換えないよう分類も照合する
-            const shop = state.shops.find(s => s.name === shopName && s.classId === classId) || (state.shops.filter(s => s.name === shopName).length === 1 ? state.shops.find(s => s.name === shopName) : null);
+            if (!shopId || !paymentId) return;
+            const shop = findShopById(shopId);
             if (!shop || shop.paymentId === paymentId) return;
             shop.paymentId = paymentId;
         }
@@ -333,6 +388,7 @@
         let lastFixedCheckDay = '';
         function allowFixedProcessing() {
             fixedProcessingAllowed = true;
+            backfillShopIds();
             processFixedExpenses();
             try { refreshCurrentView(); } catch (e) {}
         }
@@ -387,7 +443,8 @@
                                 time: "09:00",
                                 classId: fe.classId,
                                 categoryId: fe.categoryId,
-                                shopName: fe.shopName,
+                                shopName: shopDisplayName(fe),
+                                shopId: fe.shopId || resolveShopIdByName(fe.shopName, fe.classId),
                                 paymentId: fe.paymentId,
                                 memo: fe.memo || (isPending ? '定期支出 (金額未定)' : '定期支出'),
                                 isFixed: fe.isFixed === false ? false : true,
@@ -553,7 +610,7 @@
                 const timeStr = t.timeUnset ? '' : (t.time || formatTimeFromTs(t.ts));
                 const amtStr = t.isPending || t.amount === 0 ? "未定" : t.amount;
                 const typeStr = isFixedTxn(t) ? '固定費' : '変動費';
-                const row = [t.date, timeStr, safeText(cls.name), safeText(cat.name), safeText(t.shopName), safeText(pay.name), amtStr, safeText(t.memo), typeStr].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
+                const row = [t.date, timeStr, safeText(cls.name), safeText(cat.name), safeText(shopDisplayName(t)), safeText(pay.name), amtStr, safeText(t.memo), typeStr].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
             });
             await shareFile(csvContent, `家計簿データ_${toDateStr(new Date())}.csv`, "text/csv;charset=utf-8;");
         };
@@ -957,7 +1014,7 @@
                     renderTimePills(initTime, true);
                 }
 
-                document.getElementById('inp-class').value = txnToEdit.classId; updateShopSelect('inp-class', 'inp-shop', txnToEdit.shopName);
+                document.getElementById('inp-class').value = txnToEdit.classId; updateShopSelect('inp-class', 'inp-shop', shopDisplayName(txnToEdit));
                 document.getElementById('inp-cat').value = txnToEdit.categoryId; document.getElementById('inp-payment').value = txnToEdit.paymentId; document.getElementById('inp-memo').value = txnToEdit.memo;
                 setDetailIsFixed(Boolean(txnToEdit.isFixed || String(txnToEdit.id).startsWith('fx_')));
             } else if (shortcutObj) {
@@ -967,7 +1024,7 @@
                 initTime = formatExactTime(now);
                 currentTimeSlotMode = 'now';
                 renderTimePills(initTime, true);
-                document.getElementById('inp-class').value = shortcutObj.classId; updateShopSelect('inp-class', 'inp-shop', shortcutObj.shopName);
+                document.getElementById('inp-class').value = shortcutObj.classId; updateShopSelect('inp-class', 'inp-shop', shopDisplayName(shortcutObj));
                 document.getElementById('inp-cat').value = shortcutObj.categoryId; document.getElementById('inp-payment').value = shortcutObj.paymentId; document.getElementById('inp-memo').value = shortcutObj.memo;
                 setDetailIsFixed(Boolean(shortcutObj.isFixed));
             } else {
@@ -1029,6 +1086,7 @@
                 classId: document.getElementById('inp-class').value,
                 categoryId: document.getElementById('inp-cat').value,
                 shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal,
+                shopId: pickShopIdForSave(shopNameVal, document.getElementById('inp-class').value, editingTxnId ? state.transactions.find(t => t.id === editingTxnId) : null),
                 paymentId: document.getElementById('inp-payment').value,
                 memo: document.getElementById('inp-memo').value.trim(),
                 isFixed: currentDetailIsFixed,
@@ -1040,7 +1098,7 @@
             } else {
                 state.transactions.push(newTxn);
             }
-            maybeAutoUpdateShopPayment(newTxn.shopName, newTxn.paymentId, newTxn.classId);
+            maybeAutoUpdateShopPayment(newTxn.shopId, newTxn.paymentId);
             saveData();
             closeAllModals(); 
             resetMainView(); 
@@ -1055,7 +1113,76 @@
             renderCalendar();
         }
 
-        function deleteTransaction() { showConfirm("この記録を削除しますか？", () => { state.transactions = state.transactions.filter(t => t.id !== editingTxnId); saveData(); closeAllModals(); renderCalendar(); }); }
+        // 保存時の shopId。選ばれた名前＋分類で探し、見つからない場合は（削除済みのお店など）元の値を引き継ぐ
+        function pickShopIdForSave(shopName, classId, original) {
+            if (!shopName || shopName === 'ADD_NEW') return '';
+            const id = resolveShopIdByName(shopName, classId);
+            if (id) return id;
+            if (original && original.shopName === shopName && original.shopId) return original.shopId;
+            return '';
+        }
+
+        /* ==================== 削除の取り消し（Undo） v2.3 ====================
+         * 削除した直後、画面下に「元に戻す」を約7秒表示する。
+         * 元に戻すと、削除した項目を同じIDで元の位置に戻す（クラウドにも同じIDで再保存される）。
+         */
+        const UNDO_DURATION_MS = 7000;
+        let undoEntry = null;
+        let undoTimer = null;
+
+        function removeWithUndo(key, id, label) {
+            const arr = state[key] || [];
+            const index = arr.findIndex(x => x && x.id === id);
+            if (index < 0) return false;
+            const item = JSON.parse(JSON.stringify(arr[index]));
+            state[key] = arr.filter(x => !(x && x.id === id));
+            saveData();
+            offerUndo(label, [{ key, item, index }]);
+            return true;
+        }
+
+        function offerUndo(label, entries) {
+            undoEntry = { entries };
+            clearTimeout(undoTimer);
+            const toast = document.getElementById('undo-toast');
+            const msg = document.getElementById('undo-msg');
+            if (!toast || !msg) return;
+            msg.textContent = label;
+            toast.classList.add('active');
+            undoTimer = setTimeout(hideUndoToast, UNDO_DURATION_MS);
+        }
+
+        function hideUndoToast() {
+            clearTimeout(undoTimer); undoTimer = null;
+            undoEntry = null;
+            const toast = document.getElementById('undo-toast');
+            if (toast) toast.classList.remove('active');
+        }
+
+        function performUndo() {
+            if (!undoEntry) return;
+            const entries = undoEntry.entries.slice().sort((a, b) => a.index - b.index);
+            const keys = new Set();
+            entries.forEach(({ key, item, index }) => {
+                const arr = state[key] || (state[key] = []);
+                if (arr.some(x => x && x.id === item.id)) return; // 既に戻っている（他端末で再作成など）
+                arr.splice(Math.min(index, arr.length), 0, item);
+                keys.add(key);
+            });
+            hideUndoToast();
+            if (keys.size === 0) return;
+            saveData();
+            try { renderPanelLists(); } catch (e) {}
+            if (keys.has('shortcuts')) { try { renderShortcuts(); } catch (e) {} }
+            if (keys.has('timeSlots')) {
+                const curTime = document.getElementById('inp-time').value || '12:00';
+                try { renderTimePills(curTime, true); } catch (e) {}
+            }
+            refreshCurrentView();
+        }
+        window.performUndo = performUndo;
+
+        function deleteTransaction() { showConfirm("この記録を削除しますか？", () => { removeWithUndo('transactions', editingTxnId, '記録を削除しました'); closeAllModals(); renderCalendar(); }); }
 
         function setCalTab(tab, idx) { 
             calTab = tab; 
@@ -1378,7 +1505,7 @@
                     const isUnset = !t.classId && !t.categoryId;
                     const isPending = Boolean(t.isPending || t.amount === 0);
 
-                    const displayTitle = isUnset ? '未設定' : (t.shopName || catObj.name);
+                    const displayTitle = isUnset ? '未設定' : (shopDisplayName(t) || catObj.name);
                     const titleClass = (isUnset || isPending) ? 'text-[#FF3B30]' : 'text-gray-900';
 
                     let badgeHtml = '';
@@ -1462,13 +1589,14 @@
                 periodHeader.classList.add('hidden');
                 shopHeader.classList.remove('hidden');
                 
-                if (!statsSelectedShopName) {
+                if (!statsSelectedShopKey) {
                     const shopCounts = {};
                     state.transactions.forEach(t => {
-                        if (t.shopName) shopCounts[t.shopName] = (shopCounts[t.shopName] || 0) + 1;
+                        const k = shopKeyOf(t);
+                        if (k) shopCounts[k] = (shopCounts[k] || 0) + 1;
                     });
                     const topShops = Object.keys(shopCounts).sort((a,b) => shopCounts[b] - shopCounts[a]);
-                    statsSelectedShopName = topShops[0] || (state.shops[0] ? state.shops[0].name : '');
+                    statsSelectedShopKey = topShops[0] || (state.shops[0] ? 'id:' + state.shops[0].id : '');
                 }
                 updateStatsShopHeaderUI();
             } else if (tab === 'trend') {
@@ -1494,20 +1622,15 @@
             const iconEl = document.getElementById('stats-selected-shop-icon');
             if (!nameEl || !iconEl) return;
 
-            if (!statsSelectedShopName) {
+            if (!statsSelectedShopKey) {
                 nameEl.textContent = 'お店を選択してください';
                 iconEl.textContent = '🏪';
                 return;
             }
 
-            nameEl.textContent = statsSelectedShopName;
-            const shopObj = state.shops.find(s => s.name === statsSelectedShopName);
-            let icon = '🏪';
-            if (shopObj) {
-                const cls = state.shopClasses.find(c => c.id === shopObj.classId);
-                if (cls && cls.icon) icon = cls.icon;
-            }
-            iconEl.textContent = icon;
+            const info = shopKeyInfo(statsSelectedShopKey);
+            nameEl.textContent = info.name;
+            iconEl.textContent = info.icon;
         }
 
         function openStatsShopPickerSheet() {
@@ -1530,21 +1653,22 @@
 
             const q = searchQuery.trim().toLowerCase();
 
+            // v2.3: お店は ID ごとに集計（同じ名前でも分類が違えば別のお店として扱う）
             const shopStatsMap = {};
             state.transactions.forEach(t => {
-                const sName = t.shopName || '';
-                if (!sName) return;
-                if (!shopStatsMap[sName]) shopStatsMap[sName] = { total: 0, count: 0 };
-                shopStatsMap[sName].total += t.amount;
-                shopStatsMap[sName].count += 1;
+                const k = shopKeyOf(t);
+                if (!k) return;
+                if (!shopStatsMap[k]) shopStatsMap[k] = { total: 0, count: 0 };
+                shopStatsMap[k].total += t.amount;
+                shopStatsMap[k].count += 1;
             });
 
-            const shopNameSet = new Set(state.shops.map(s => s.name));
-            Object.keys(shopStatsMap).forEach(name => shopNameSet.add(name));
+            const shopKeySet = new Set(state.shops.map(s => 'id:' + s.id));
+            Object.keys(shopStatsMap).forEach(k => shopKeySet.add(k));
 
-            let shopArray = Array.from(shopNameSet).filter(name => {
+            let shopArray = Array.from(shopKeySet).filter(k => {
                 if (!q) return true;
-                return name.toLowerCase().includes(q);
+                return shopKeyInfo(k).name.toLowerCase().includes(q);
             });
 
             shopArray.sort((a, b) => {
@@ -1558,25 +1682,19 @@
                 return;
             }
 
-            shopArray.forEach(shopName => {
-                const shopObj = state.shops.find(s => s.name === shopName);
-                let icon = '🏪';
-                let className = '未分類';
-                if (shopObj) {
-                    const cls = state.shopClasses.find(c => c.id === shopObj.classId);
-                    if (cls) {
-                        icon = cls.icon;
-                        className = cls.name;
-                    }
-                }
+            shopArray.forEach(shopKey => {
+                const info = shopKeyInfo(shopKey);
+                const shopName = info.name;
+                const icon = info.icon;
+                const className = info.className;
 
-                const sData = shopStatsMap[shopName] || { total: 0, count: 0 };
-                const isSelected = (statsSelectedShopName === shopName);
+                const sData = shopStatsMap[shopKey] || { total: 0, count: 0 };
+                const isSelected = (statsSelectedShopKey === shopKey);
 
                 const card = document.createElement('div');
                 card.className = `shop-picker-card ${isSelected ? 'active' : ''}`;
                 card.onclick = () => {
-                    statsSelectedShopName = shopName;
+                    statsSelectedShopKey = shopKey;
                     updateStatsShopHeaderUI();
                     closeStatsShopPickerSheet();
                     renderStats();
@@ -1597,6 +1715,15 @@
                 `;
                 listEl.appendChild(card);
             });
+        }
+
+        // 月別・年別の「お店別」集計用の表示名。同じ名前の別のお店は分類名を添えて区別する
+        function shopLabelForStats(t) {
+            const k = shopKeyOf(t);
+            if (!k) return '未指定';
+            const info = shopKeyInfo(k);
+            const dupName = state.shops.filter(s => s.name === info.name).length > 1;
+            return dupName && info.shop ? `${info.name}（${info.className}）` : info.name;
         }
 
         function setTrendChartMode(mode) {
@@ -1661,10 +1788,12 @@
 
             // ---------- ① 今週 / 今月の1日あたり vs 過去平均 ----------
             const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
-            const thisWeek = periodPerDay(weekStart, today);
+            // [v2.3] 「今週」は日曜だと1日分だけで不安定なため、直近7日（今日を含む）で計算し、その前の8週間と比べる
+            const last7Start = new Date(today); last7Start.setDate(today.getDate() - 6);
+            const thisWeek = periodPerDay(last7Start, today);
 
-            const prevWeeksEnd = new Date(weekStart); prevWeeksEnd.setDate(weekStart.getDate() - 1);
-            const prevWeeksStart = new Date(weekStart); prevWeeksStart.setDate(weekStart.getDate() - 7 * 8);
+            const prevWeeksEnd = new Date(last7Start); prevWeeksEnd.setDate(last7Start.getDate() - 1);
+            const prevWeeksStart = new Date(last7Start); prevWeeksStart.setDate(last7Start.getDate() - 7 * 8);
             const prevWeeksBaseline = periodPerDay(prevWeeksStart, prevWeeksEnd);
 
             const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -1689,6 +1818,8 @@
                     else { monthVariableSoFar += t.amount; catVariableSoFar[t.categoryId] = (catVariableSoFar[t.categoryId] || 0) + t.amount; }
                 }
             });
+            // [v2.3] 金額未定の記録は合計に入らないため、件数を注記する
+            const pendingThisMonth = statsTxns.filter(t => t.date >= monthStartStr && t.date <= todayStr && (t.isPending || t.amount === 0)).length;
             let upcomingFixedTotal = 0;
             if (statsFixedFilter !== 'variable') {
                 (state.fixedExpenses || []).forEach(fe => {
@@ -1867,7 +1998,7 @@
             container.innerHTML = `
                 <div class="grid grid-cols-2 gap-3 mb-4">
                     <div class="bg-white rounded-2xl p-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
-                        <span class="text-[11px] font-semibold text-gray-400">今週の1日あたり</span>
+                        <span class="text-[11px] font-semibold text-gray-400">直近7日の1日あたり</span>
                         <div class="text-[24px] font-black text-gray-900 tracking-tight leading-none mt-1.5">¥${Math.round(thisWeek ? thisWeek.perDay : 0).toLocaleString()}</div>
                         ${deltaBadge(thisWeek, prevWeeksBaseline, '対過去平均')}
                     </div>
@@ -1891,6 +2022,7 @@
                         <span class="text-[26px] font-black text-gray-900 tracking-tight leading-none">¥${projectedTotal.toLocaleString()}</span>
                         <span class="text-[11px] font-semibold text-gray-400">予測（現在 ¥${(thisMonth ? thisMonth.total : 0).toLocaleString()}）</span>
                     </div>
+                    ${pendingThisMonth > 0 ? `<div class="text-[11px] font-semibold text-[#FF3B30] mt-2">※ 金額未定の記録 ${pendingThisMonth}件 は含まれていません</div>` : ''}
                 </div>
 
                 <!-- 前月比・前年同月比 -->
@@ -1963,7 +2095,7 @@
 
             // ===== Shopタブのレンダリング =====
             if (statsTab === 'shop') {
-                if (!statsSelectedShopName) {
+                if (!statsSelectedShopKey) {
                     container.innerHTML = `
                         <div class="py-16 text-center text-gray-400 font-medium flex flex-col items-center">
                             <span class="text-4xl mb-3">🏪</span>
@@ -1973,7 +2105,13 @@
                     return;
                 }
 
-                const shopTxns = state.transactions.filter(t => t.shopName === statsSelectedShopName);
+                if (statsSelectedShopKey.startsWith('name:')) {
+                    // shopId が付く前に選ばれていたお店は ID のキーに切り替える
+                    const id = resolveShopIdByName(statsSelectedShopKey.slice(5));
+                    if (id && !state.transactions.some(t => shopKeyOf(t) === statsSelectedShopKey)) { statsSelectedShopKey = 'id:' + id; updateStatsShopHeaderUI(); }
+                }
+                const selectedShopLabel = shopKeyInfo(statsSelectedShopKey).name;
+                const shopTxns = state.transactions.filter(t => shopKeyOf(t) === statsSelectedShopKey);
                 if (shopTxns.length === 0) {
                     container.innerHTML = `
                         <div class="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(0,0,0,0.03)] text-center">
@@ -2129,7 +2267,7 @@
                     <!-- メインサマリーカード（月平均利用額を大きく主役に配置） -->
                     <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="text-[18px] font-extrabold text-gray-900 truncate tracking-tight">${escapeHTML(statsSelectedShopName)}</span>
+                            <span class="text-[18px] font-extrabold text-gray-900 truncate tracking-tight">${escapeHTML(selectedShopLabel)}</span>
                             <span class="text-[12px] font-semibold text-gray-400">平均月額</span>
                         </div>
 
@@ -2201,9 +2339,15 @@
             let total = 0; const catMap = {}; const payMap = {}; const shopAmtMap = {}; const shopCntMap = {};
             filtered.forEach(t => {
                 total += t.amount; catMap[t.categoryId] = (catMap[t.categoryId] || 0) + t.amount; payMap[t.paymentId] = (payMap[t.paymentId] || 0) + t.amount;
-                const shopName = t.shopName || '未指定'; shopAmtMap[shopName] = (shopAmtMap[shopName] || 0) + t.amount; shopCntMap[shopName] = (shopCntMap[shopName] || 0) + 1;
+                const shopName = shopLabelForStats(t); shopAmtMap[shopName] = (shopAmtMap[shopName] || 0) + t.amount; shopCntMap[shopName] = (shopCntMap[shopName] || 0) + 1;
             });
             document.getElementById('lbl-stats-total').textContent = total.toLocaleString();
+            const pendingEl = document.getElementById('lbl-stats-pending');
+            if (pendingEl) {
+                const pendingCount = filtered.filter(t => t.isPending || t.amount === 0).length;
+                pendingEl.textContent = pendingCount > 0 ? `※ 金額未定の記録 ${pendingCount}件 は含まれていません` : '';
+                pendingEl.classList.toggle('hidden', pendingCount === 0);
+            }
 
             // 1日あたりの金額：表示中の期間（月 or 年）の開始日と、家計簿全体の初回入力日のうち「遅い方」を起点とし、
             // 今日と期間末のうち「早い方」までの経過日数で割る（データが存在しない期間を分母に含めないため）
@@ -2310,7 +2454,7 @@
                     toggleFixedPending(isPending);
                     document.getElementById('fx-amount').value = isPending ? "" : s.amount;
                     document.getElementById('fx-day').value = s.day;
-                    document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', s.shopName);
+                    document.getElementById('fx-class').value = s.classId; updateShopSelect('fx-class','fx-shop', shopDisplayName(s));
                     document.getElementById('fx-cat').value = s.categoryId; document.getElementById('fx-pay').value = s.paymentId; document.getElementById('fx-memo').value = s.memo || '';
                     setFixedEditorIsFixed(s.isFixed === false ? false : true);
                 }
@@ -2377,6 +2521,7 @@
                 classId: document.getElementById('fx-class').value,
                 categoryId: document.getElementById('fx-cat').value,
                 shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal,
+                shopId: pickShopIdForSave(shopNameVal, document.getElementById('fx-class').value, editingFixedId ? state.fixedExpenses.find(x => x.id === editingFixedId) : null),
                 paymentId: document.getElementById('fx-pay').value,
                 memo: document.getElementById('fx-memo').value.trim(),
                 isFixed: currentFixedEditorIsFixed
@@ -2399,7 +2544,7 @@
             renderFixedExpenses();
         };
 
-        window.deleteFixedExpense = () => { showConfirm("この定期支出を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
+        window.deleteFixedExpense = () => { showConfirm("この定期支出を削除しますか？", () => { removeWithUndo('fixedExpenses', editingFixedId, '定期支出を削除しました'); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
 
         window.manualAddFixed = () => {
             const name = document.getElementById('fx-name').value.trim(); 
@@ -2427,6 +2572,7 @@
                     classId: classId, 
                     categoryId: catId, 
                     shopName: shopName === 'ADD_NEW' ? '' : shopName, 
+                    shopId: pickShopIdForSave(shopName, classId, editingFixedId ? state.fixedExpenses.find(x => x.id === editingFixedId) : null),
                     paymentId: paymentId,
                     memo: memo || (isPending ? '定期支出 (金額未定)' : '定期支出'),
                     isFixed: currentFixedEditorIsFixed,
@@ -2484,8 +2630,7 @@
                 return;
             }
             showConfirm("この時間帯を削除しますか？", () => {
-                state.timeSlots = state.timeSlots.filter(t => t.id !== editingTimeSlotId);
-                saveData();
+                removeWithUndo('timeSlots', editingTimeSlotId, '時間帯を削除しました');
                 closeModal('modal-timeslot-editor');
                 renderPanelLists();
                 const curTime = document.getElementById('inp-time').value || "12:00";
@@ -2535,8 +2680,7 @@
                 return;
             }
             showConfirm("この時刻をピッカー候補から削除しますか？", () => {
-                state.quickTimes = state.quickTimes.filter(t => t.id !== editingQuickTimeId);
-                saveData();
+                removeWithUndo('quickTimes', editingQuickTimeId, '時刻を削除しました');
                 closeModal('modal-quicktime-editor');
                 renderPanelLists();
             });
@@ -2631,9 +2775,9 @@
                 const n = state.transactions.filter(t => t.paymentId === id).length;
                 if (n > 0) msg = `この支払い方法は ${n}件 の記録で使われています。削除すると、それらの記録の支払い方法は「不明」と表示されます。削除しますか？`;
             }
+            const undoLabels = { shops: 'お店を削除しました', shopClasses: '分類を削除しました', categories: 'カテゴリーを削除しました', paymentMethods: '支払い方法を削除しました', shortcuts: 'クイック入力を削除しました', timeSlots: '時間帯を削除しました', quickTimes: '時刻を削除しました' };
             showConfirm(msg, () => { 
-                state[arrayName] = state[arrayName].filter(i=>i.id!==id); 
-                saveData(); 
+                removeWithUndo(arrayName, id, undoLabels[arrayName] || '削除しました'); 
                 renderPanelLists(); 
                 if(arrayName === 'shortcuts') renderShortcuts(); 
                 if(arrayName === 'timeSlots') { 
@@ -2687,12 +2831,13 @@
         //   （記録はお店を名前で参照しているため。同じ名前のお店が他の分類にもある場合は分類も一致するものだけ）
         function propagateShopRename(oldShop, newName) {
             const sameNameOthers = state.shops.some(s => s.id !== oldShop.id && s.name === oldShop.name);
-            const matches = x => x && x.shopName === oldShop.name && (!sameNameOthers || x.classId === oldShop.classId);
+            // v2.3: shopId で紐付いているものは確実に、ID の無い古いデータは名前（＋分類）で判定する
+            const matches = x => x && (x.shopId ? x.shopId === oldShop.id : (x.shopName === oldShop.name && (!sameNameOthers || x.classId === oldShop.classId)));
             let count = 0;
             ['transactions', 'fixedExpenses', 'shortcuts'].forEach(key => {
-                (state[key] || []).forEach(x => { if (matches(x)) { x.shopName = newName; count++; } });
+                (state[key] || []).forEach(x => { if (matches(x)) { x.shopName = newName; x.shopId = oldShop.id; count++; } });
             });
-            if (statsSelectedShopName === oldShop.name) statsSelectedShopName = newName;
+            if (statsSelectedShopKey === 'name:' + oldShop.name) statsSelectedShopKey = 'id:' + oldShop.id;
             return count;
         }
 
@@ -2703,7 +2848,7 @@
                 if(s) { 
                     document.getElementById('sh-name').value = s.name; 
                     document.getElementById('sh-amount').value = s.amount || ''; 
-                    document.getElementById('sh-class').value = s.classId; updateShopSelect('sh-class','sh-shop', s.shopName);
+                    document.getElementById('sh-class').value = s.classId; updateShopSelect('sh-class','sh-shop', shopDisplayName(s));
                     document.getElementById('sh-cat').value = s.categoryId; document.getElementById('sh-pay').value = s.paymentId; document.getElementById('sh-memo').value = s.memo || '';
                     setShortcutIsFixed(Boolean(s.isFixed));
                 }
@@ -2728,7 +2873,7 @@
             if (amt !== null && (isNaN(amt) || amt <= 0)) { showAlert("金額は1円以上で入力してください"); return; }
 
             const shopNameVal = document.getElementById('sh-shop').value;
-            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim(), isFixed: currentShortcutIsFixed };
+            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, shopId: pickShopIdForSave(shopNameVal, document.getElementById('sh-class').value, editingShortcutId ? state.shortcuts.find(x => x.id === editingShortcutId) : null), paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim(), isFixed: currentShortcutIsFixed };
             if (editingShortcutId) { const idx = state.shortcuts.findIndex(x => x.id === editingShortcutId); if(idx > -1) state.shortcuts[idx] = newSC; } else { state.shortcuts.push(newSC); } saveData(); closeModal('modal-shortcut-editor'); renderPanelLists(); renderShortcuts();
         };
 

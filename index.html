@@ -132,6 +132,7 @@
                             <span class="text-[38px] font-black text-[#007AFF] tracking-tight leading-none">¥<span id="lbl-stats-total">0</span></span>
                         </div>
                         <div class="text-[13px] font-bold text-gray-400">(¥<span id="lbl-stats-perday">0</span> / 日)</div>
+                        <div id="lbl-stats-pending" class="hidden text-[11px] font-semibold text-[#FF3B30] mt-1"></div>
                     </div>
                 </div>
 
@@ -794,6 +795,12 @@
                     <button class="dialog-btn text-[#007AFF] font-semibold w-full" onclick="document.getElementById('custom-alert').classList.remove('active')">OK</button>
                 </div>
             </div>
+        </div>
+
+        <!-- 削除の取り消し（v2.3） -->
+        <div id="undo-toast" class="undo-toast" role="status" aria-live="polite">
+            <span id="undo-msg" class="undo-toast-msg"></span>
+            <button type="button" class="undo-toast-btn" onclick="performUndo()">元に戻す</button>
         </div>
 
     </div>

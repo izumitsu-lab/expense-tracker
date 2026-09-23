@@ -348,3 +348,35 @@
             border-color: var(--ios-blue);
             background: rgba(0, 122, 255, 0.06);
         }
+
+        /* 削除の取り消しトースト（v2.3） */
+        .undo-toast {
+            position: absolute;
+            left: 16px; right: 16px;
+            bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px);
+            z-index: 230;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 12px 12px 12px 18px;
+            border-radius: 16px;
+            background: rgba(28, 28, 30, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: #FFFFFF;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transform: translateY(16px);
+            pointer-events: none;
+            transition: opacity 0.2s ease-out, transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .undo-toast.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .undo-toast-msg { font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .undo-toast .undo-toast-btn {
+            flex-shrink: 0;
+            padding: 8px 14px;
+            border-radius: 11px;
+            background: rgba(10, 132, 255, 0.25);
+            color: #64B5FF;
+            font-size: 15px; font-weight: 700;
+            transition: transform 0.1s, background 0.1s;
+        }
+        .undo-toast .undo-toast-btn:active { transform: scale(0.95); background: rgba(10, 132, 255, 0.4); }
