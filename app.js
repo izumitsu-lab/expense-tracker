@@ -1,3 +1,8 @@
+        /* =====================================================================
+         * 家計簿アプリ app.js  —  v2.2（点検修正版 / 2026-09-23）
+         * 修正内容の一覧は同梱の「修正内容.md」を参照。
+         * 同期サーバー（Firestore）のデータ構造・コレクション名は旧版から変更なし。
+         * ===================================================================== */
         const generateId = () => {
             if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
                 return crypto.randomUUID();
@@ -15,9 +20,23 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // Firestore のドキュメントIDとして安全に使えるか（"/" を含まない等）
+        function isValidDocId(id) {
+            return typeof id === 'string' && id.length > 0 && id.length <= 200 && !id.includes('/') && id !== '.' && id !== '..' && !/^__.*__$/.test(id);
+        }
+
         // Dateオブジェクトを "YYYY-MM-DD" 文字列に変換（t.date と同じ形式）
         function toDateStr(d) {
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        // [修正] 月送りで日付があふれて月が飛ぶ問題（8/31 → 9/31 = 10/1）を防ぐ。月末日に丸める
+        function addMonthsClamped(date, months) {
+            const y = date.getFullYear(), m = date.getMonth() + months, d = date.getDate();
+            const lastDay = new Date(y, m + 1, 0).getDate();
+            const r = new Date(y, m, Math.min(d, lastDay));
+            r.setHours(0, 0, 0, 0);
+            return r;
         }
 
         // ==================== 時刻ユーティリティ ====================
@@ -230,10 +249,11 @@
 
         // そのお店を実際に利用した際の支払い方法が、登録済みの既定の支払い方法と異なる場合、
         // 「最後に使った支払い方法を既定にする」がオンなら、お店の詳細設定を自動的に書き換える
-        function maybeAutoUpdateShopPayment(shopName, paymentId) {
+        function maybeAutoUpdateShopPayment(shopName, paymentId, classId) {
             if (!state.autoUpdateShopPayment) return;
             if (!shopName || !paymentId) return;
-            const shop = state.shops.find(s => s.name === shopName);
+            // [修正] 同じ名前のお店が別の分類にある場合に、違うお店を書き換えないよう分類も照合する
+            const shop = state.shops.find(s => s.name === shopName && s.classId === classId) || (state.shops.filter(s => s.name === shopName).length === 1 ? state.shops.find(s => s.name === shopName) : null);
             if (!shop || shop.paymentId === paymentId) return;
             shop.paymentId = paymentId;
         }
@@ -281,7 +301,6 @@
             if (!state.quickTimes || state.quickTimes.length === 0) {
                 state.quickTimes = JSON.parse(JSON.stringify(DEFAULT_STATE.quickTimes));
             }
-            processFixedExpenses(); 
             updateUnsetBadge();
         }
 
@@ -300,51 +319,90 @@
             updateUnsetBadge();
         }
 
+        // "YYYY-MM-DD" を端末のローカル日付として解釈する
+        // [修正] new Date("2026-09-23") は UTC 扱いになり、日本より西のタイムゾーンでは1日ずれるため
+        function parseDateStr(s) {
+            if (!s || typeof s !== 'string') return new Date(NaN);
+            const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (!m) return new Date(NaN);
+            return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        }
+
+        // 定期支出の自動追加は「クラウドの最新状態を読み込んだ後」に行う（ログインしていない場合はすぐ）
+        let fixedProcessingAllowed = false;
+        let lastFixedCheckDay = '';
+        function allowFixedProcessing() {
+            fixedProcessingAllowed = true;
+            processFixedExpenses();
+            try { refreshCurrentView(); } catch (e) {}
+        }
+        // [修正] アプリを開いたまま日付をまたいだ場合にも処理する
+        function checkFixedExpensesDateChange() {
+            if (!fixedProcessingAllowed) return;
+            if (toDateStr(new Date()) !== lastFixedCheckDay) {
+                processFixedExpenses();
+                try { refreshCurrentView(); } catch (e) {}
+            }
+        }
+        setInterval(checkFixedExpensesDateChange, 60 * 1000);
+
+        // [修正] 最終実行日を各定期支出ごと（fixedExpenses の lastRunDate 欄）にも記録する。
+        //   この欄は既存の fixedExpenses コレクションで同期されるため、他の端末で処理済みの日付を再生成しない。
+        //   （欄が無い古いデータは、従来どおり端末ごとの lastRunDate を使う）
         function processFixedExpenses() {
-            if (!state.fixedExpenses || state.fixedExpenses.length === 0) {
-                const d = new Date(); state.lastRunDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; saveData(); return; }
-            const now = new Date(); const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-            if (!state.lastRunDate) { state.lastRunDate = todayStr; saveData(); return; }
-            if (state.lastRunDate === todayStr) return;
-
-            const lastRun = new Date(state.lastRunDate); lastRun.setHours(0,0,0,0);
-            const today = new Date(now); today.setHours(0,0,0,0);
-            let currentDate = new Date(lastRun); currentDate.setDate(currentDate.getDate() + 1);
+            if (!fixedProcessingAllowed) return;
+            const todayStr = toDateStr(new Date());
+            lastFixedCheckDay = todayStr;
+            const globalLast = state.lastRunDate || '';
+            const today = parseDateStr(todayStr);
             let addedCount = 0;
+            let changed = false;
 
-            while (currentDate <= today) {
-                const y = currentDate.getFullYear(); const m = currentDate.getMonth() + 1; const d = currentDate.getDate();
-                const lastDayOfMonth = new Date(y, m, 0).getDate();
-
-                state.fixedExpenses.forEach(fe => {
-                    let targetDay = parseInt(fe.day); if (isNaN(targetDay)) targetDay = 1;
+            (state.fixedExpenses || []).forEach(fe => {
+                if (!fe || !fe.id) return;
+                const from = (typeof fe.lastRunDate === 'string' && fe.lastRunDate) ? fe.lastRunDate : globalLast;
+                if (!from) { fe.lastRunDate = todayStr; changed = true; return; }
+                if (from >= todayStr) {
+                    if (fe.lastRunDate !== todayStr && from === todayStr) { fe.lastRunDate = todayStr; changed = true; }
+                    return;
+                }
+                const lastRun = parseDateStr(from);
+                if (isNaN(lastRun.getTime())) { fe.lastRunDate = todayStr; changed = true; return; }
+                const cur = new Date(lastRun); cur.setDate(cur.getDate() + 1);
+                while (cur <= today) {
+                    const y = cur.getFullYear(); const m = cur.getMonth() + 1; const d = cur.getDate();
+                    const lastDayOfMonth = new Date(y, m, 0).getDate();
+                    let targetDay = parseInt(fe.day, 10); if (isNaN(targetDay)) targetDay = 1;
                     if (targetDay > lastDayOfMonth) targetDay = lastDayOfMonth;
                     if (d === targetDay) {
-                        const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                        const dateStr = toDateStr(cur);
                         const txnId = `fx_${fe.id}_${dateStr}`;
                         if (!state.transactions.find(t => t.id === txnId)) {
                             const isPending = Boolean(fe.isPending || fe.amount === 0);
                             state.transactions.push({
-                                id: txnId, 
-                                amount: isPending ? 0 : fe.amount, 
+                                id: txnId,
+                                amount: isPending ? 0 : fe.amount,
                                 isPending: isPending,
-                                date: dateStr, 
+                                date: dateStr,
                                 time: "09:00",
-                                classId: fe.classId, 
-                                categoryId: fe.categoryId, 
-                                shopName: fe.shopName, 
+                                classId: fe.classId,
+                                categoryId: fe.categoryId,
+                                shopName: fe.shopName,
                                 paymentId: fe.paymentId,
                                 memo: fe.memo || (isPending ? '定期支出 (金額未定)' : '定期支出'),
                                 isFixed: fe.isFixed === false ? false : true,
-                                ts: new Date(`${dateStr}T09:00:00`).getTime() || Date.now()
+                                ts: new Date(y, m - 1, d, 9, 0, 0).getTime() || Date.now()
                             });
                             addedCount++;
                         }
                     }
-                });
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            state.lastRunDate = todayStr; saveData();
+                    cur.setDate(cur.getDate() + 1);
+                }
+                fe.lastRunDate = todayStr; changed = true;
+            });
+
+            if (state.lastRunDate !== todayStr) { state.lastRunDate = todayStr; changed = true; }
+            if (changed || addedCount > 0) saveData();
             if (addedCount > 0) showAlert(`定期支出が ${addedCount}件 履歴に追加されました。`);
         }
 
@@ -485,15 +543,19 @@
         }
 
         window.exportCSV = async () => {
-            let csvContent = "\uFEFF"; csvContent += "日付,時間,分類,カテゴリー,お店,支払い方法,金額,メモ\n";
+            let csvContent = "\uFEFF"; csvContent += "日付,時間,分類,カテゴリー,お店,支払い方法,金額,メモ,費目タイプ\n";
+            // [修正] Excel で開いたときに =, +, -, @ で始まる文字が数式として実行されないようにする
+            const safeText = v => { const str = (v || '').toString(); return /^[=+\-@\t\r]/.test(str) ? "'" + str : str; };
             const sortedTxns = [...state.transactions].sort((a, b) => a.date !== b.date ? (a.date > b.date ? -1 : 1) : (b.ts || 0) - (a.ts || 0));
             sortedTxns.forEach(t => {
                 const cls = state.shopClasses.find(c => c.id === t.classId) || {name: ''}; const cat = state.categories.find(c => c.id === t.categoryId) || {name: ''}; const pay = state.paymentMethods.find(p => p.id === t.paymentId) || {name: ''};
-                const timeStr = t.time || formatTimeFromTs(t.ts);
+                // [修正] 時間未設定の記録を「00:00」と出力しない
+                const timeStr = t.timeUnset ? '' : (t.time || formatTimeFromTs(t.ts));
                 const amtStr = t.isPending || t.amount === 0 ? "未定" : t.amount;
-                const row = [t.date, timeStr, cls.name, cat.name, t.shopName, pay.name, amtStr, t.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
+                const typeStr = isFixedTxn(t) ? '固定費' : '変動費';
+                const row = [t.date, timeStr, safeText(cls.name), safeText(cat.name), safeText(t.shopName), safeText(pay.name), amtStr, safeText(t.memo), typeStr].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','); csvContent += row + "\n";
             });
-            await shareFile(csvContent, `家計簿データ_${new Date().toISOString().split('T')[0]}.csv`, "text/csv;charset=utf-8;");
+            await shareFile(csvContent, `家計簿データ_${toDateStr(new Date())}.csv`, "text/csv;charset=utf-8;");
         };
 
         window.exportData = async () => {
@@ -503,7 +565,7 @@
                 ...state
             };
             const dataStr = JSON.stringify(exportPayload, null, 2); 
-            await shareFile(dataStr, `expense_tracker_backup_${new Date().toISOString().split('T')[0]}.json`, "application/json;charset=utf-8;");
+            await shareFile(dataStr, `expense_tracker_backup_${toDateStr(new Date())}.json`, "application/json;charset=utf-8;");
         };
 
         window.importData = (event) => { 
@@ -525,10 +587,28 @@
                             }
                         }
                         
-                        const invalidTxn = imported.transactions.some(t => !t.id || typeof t.amount !== 'number' || isNaN(t.amount) || !t.date);
+                        const invalidTxn = imported.transactions.some(t => !t || !t.id || typeof t.amount !== 'number' || isNaN(t.amount) || typeof t.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t.date));
                         if (invalidTxn) {
                             throw new Error("取引データの中にID・金額・日付の形式が正しくないものが含まれています。");
                         }
+                        // [修正] すべての配列の項目について ID を検証する（同期先の Firestore で使えないIDや、不正な値を防ぐ）
+                        const allArrays = ['transactions', 'timeSlots', 'quickTimes', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
+                        for (const key of allArrays) {
+                            if (imported[key] === undefined) continue;
+                            if (!Array.isArray(imported[key])) throw new Error(`"${key}" が配列ではありません。`);
+                            const seen = new Set();
+                            for (const item of imported[key]) {
+                                if (!item || typeof item !== 'object' || !isValidDocId(item.id)) {
+                                    throw new Error(`"${key}" に不正なIDの項目が含まれています。`);
+                                }
+                                if (seen.has(item.id)) throw new Error(`"${key}" に重複したIDが含まれています。`);
+                                seen.add(item.id);
+                            }
+                        }
+                        const badTime = [].concat(imported.timeSlots || [], imported.quickTimes || []).some(x => typeof x.time !== 'string' || !/^\d{1,2}:\d{2}$/.test(x.time));
+                        if (badTime) throw new Error("時間帯・クイック時刻の時刻形式が正しくありません。");
+                        const badFixed = (imported.fixedExpenses || []).some(f => typeof f.amount !== 'number' || isNaN(f.amount));
+                        if (badFixed) throw new Error("定期支出の金額の形式が正しくありません。");
 
                         state.transactions = imported.transactions;
                         state.timeSlots = Array.isArray(imported.timeSlots) && imported.timeSlots.length > 0 ? imported.timeSlots : DEFAULT_STATE.timeSlots;
@@ -544,7 +624,10 @@
 
                         saveData(); 
                         showAlert("データの復元が完了しました。"); 
-                        setTimeout(() => location.reload(), 1200); 
+                        // [修正] ログイン中は、クラウドへの送信が終わってから再読み込みする
+                        Promise.resolve(typeof flushSync === 'function' ? flushSync() : null)
+                            .catch(err => console.error(err))
+                            .finally(() => setTimeout(() => location.reload(), 1200));
                     } catch(err) { 
                         showAlert("復元エラー: " + err.message); 
                     } 
@@ -592,7 +675,10 @@
             
             saveData(); 
             resetMainView(); 
-            switchView('calendar'); 
+            // [修正] 保存した今日の記録が必ず見えるように、履歴を今日の日付に合わせる
+            calCurrentDate = new Date(); calCurrentDate.setHours(0, 0, 0, 0);
+            if (document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
+            else switchView('calendar'); 
         }
 
         function handleNumInput(val) { if (val === 'C') currentAmount = "0"; else if (val === 'BACK') { currentAmount = currentAmount.slice(0, -1); if (currentAmount === "") currentAmount = "0"; } else { if (currentAmount === "0") currentAmount = val; else if (currentAmount.length < 8) currentAmount += val; } updateAmount(); }
@@ -802,6 +888,8 @@
                 void container.offsetWidth;
                 container.classList.add('pulse-focus');
             }
+            // [修正] 既存の記録を編集中は、日付を変えても時刻を消さない（黙って「今」の時刻で上書きされるのを防ぐ）
+            if (editingTxnId) return;
             currentTimeSlotMode = null;
             renderTimePills('', false);
         }
@@ -952,12 +1040,12 @@
             } else {
                 state.transactions.push(newTxn);
             }
-            maybeAutoUpdateShopPayment(newTxn.shopName, newTxn.paymentId);
+            maybeAutoUpdateShopPayment(newTxn.shopName, newTxn.paymentId, newTxn.classId);
             saveData();
             closeAllModals(); 
             resetMainView(); 
 
-            calCurrentDate = new Date(dateVal);
+            calCurrentDate = parseDateStr(dateVal);
             calCurrentDate.setHours(0,0,0,0);
             
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -982,12 +1070,12 @@
         function shiftDate(offset) { 
             if (calTab === 'daily') calCurrentDate.setDate(calCurrentDate.getDate() + offset); 
             else if (calTab === 'weekly') calCurrentDate.setDate(calCurrentDate.getDate() + offset * 7); 
-            else if (calTab === 'monthly') calCurrentDate.setMonth(calCurrentDate.getMonth() + offset); 
-            else if (calTab === 'yearly') calCurrentDate.setFullYear(calCurrentDate.getFullYear() + offset); 
+            else if (calTab === 'monthly') calCurrentDate = addMonthsClamped(calCurrentDate, offset); 
+            else if (calTab === 'yearly') calCurrentDate = addMonthsClamped(calCurrentDate, offset * 12); 
             renderCalendar(); 
         }
 
-        function jumpToDate(dateStr) { if(!dateStr) return; calCurrentDate = new Date(dateStr); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
+        function jumpToDate(dateStr) { if(!dateStr) return; calCurrentDate = parseDateStr(dateStr); if (isNaN(calCurrentDate.getTime())) calCurrentDate = new Date(); calCurrentDate.setHours(0,0,0,0); renderCalendar(); }
 
         /* ==================== 履歴 検索・フィルター・並び替え ==================== */
         function onCalSearchInput(val) {
@@ -1207,7 +1295,7 @@
                 const wEnd = new Date(wStart);
                 wEnd.setDate(wStart.getDate() + 6);
                 filtered = state.transactions.filter(t => {
-                    const td = new Date(t.date);
+                    const td = parseDateStr(t.date);
                     td.setHours(0,0,0,0);
                     return td >= wStart && td <= wEnd;
                 });
@@ -1283,7 +1371,7 @@
             } else {
                 filtered.forEach(t => {
                     total += t.amount; 
-                    const dt = new Date(t.date); 
+                    const dt = parseDateStr(t.date); 
                     const payObj = state.paymentMethods.find(p => p.id === t.paymentId) || {name: '不明'}; 
                     const catObj = state.categories.find(c => c.id === t.categoryId) || {name: '不明'};
                     
@@ -1339,7 +1427,7 @@
                 const allDatesSorted = state.transactions.map(t => t.date).filter(Boolean).sort();
                 let perDayText = '0';
                 if (allDatesSorted.length > 0) {
-                    const firstEverDate = new Date(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
+                    const firstEverDate = parseDateStr(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
                     const today = new Date(); today.setHours(0, 0, 0, 0);
                     const effectiveStart = firstEverDate > periodStart ? firstEverDate : periodStart;
                     const effectiveEnd = today < periodEnd ? today : periodEnd;
@@ -1396,8 +1484,8 @@
         }
 
         function shiftStatsDate(offset) { 
-            if (statsTab === 'monthly') statsCurrentDate.setMonth(statsCurrentDate.getMonth() + offset); 
-            else if (statsTab === 'yearly') statsCurrentDate.setFullYear(statsCurrentDate.getFullYear() + offset); 
+            if (statsTab === 'monthly') statsCurrentDate = addMonthsClamped(statsCurrentDate, offset); 
+            else if (statsTab === 'yearly') statsCurrentDate = addMonthsClamped(statsCurrentDate, offset * 12); 
             renderStats(); 
         }
 
@@ -1532,7 +1620,7 @@
 
             // 家計簿全体の初回入力日（比較期間がデータの無い過去にはみ出さないための下限）
             const allDatesSorted = state.transactions.map(t => t.date).filter(Boolean).sort();
-            const firstEverDate = allDatesSorted.length > 0 ? new Date(allDatesSorted[0]) : null;
+            const firstEverDate = allDatesSorted.length > 0 ? parseDateStr(allDatesSorted[0]) : null;
             if (firstEverDate) firstEverDate.setHours(0, 0, 0, 0);
 
             // 表示切り替え（すべて／変動費のみ）を反映した取引一覧
@@ -1591,7 +1679,30 @@
             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
             const daysElapsedThisMonth = Math.round((today - monthStart) / 86400000) + 1;
             const progressPct = Math.min(100, Math.round((daysElapsedThisMonth / daysInMonth) * 100));
-            const projectedTotal = thisMonth ? Math.round(thisMonth.perDay * daysInMonth) : 0;
+            // [修正] 固定費（家賃など）は日数で引き伸ばさず実額で計上し、変動費だけを日割りで外挿する。
+            //   さらに、今月まだ追加されていない定期支出（今日より後の日付）は予定額として加える。
+            let monthFixedSoFar = 0, monthVariableSoFar = 0;
+            const catFixedSoFar = {}, catVariableSoFar = {}, catUpcomingFixed = {};
+            statsTxns.forEach(t => {
+                if (t.date >= monthStartStr && t.date <= todayStr) {
+                    if (isFixedTxn(t)) { monthFixedSoFar += t.amount; catFixedSoFar[t.categoryId] = (catFixedSoFar[t.categoryId] || 0) + t.amount; }
+                    else { monthVariableSoFar += t.amount; catVariableSoFar[t.categoryId] = (catVariableSoFar[t.categoryId] || 0) + t.amount; }
+                }
+            });
+            let upcomingFixedTotal = 0;
+            if (statsFixedFilter !== 'variable') {
+                (state.fixedExpenses || []).forEach(fe => {
+                    if (!fe || fe.isPending || !(fe.amount > 0)) return;
+                    let targetDay = parseInt(fe.day, 10); if (isNaN(targetDay)) targetDay = 1;
+                    if (targetDay > daysInMonth) targetDay = daysInMonth;
+                    if (targetDay <= today.getDate()) return;
+                    const dateStr = toDateStr(new Date(today.getFullYear(), today.getMonth(), targetDay));
+                    if (state.transactions.some(t => t.id === `fx_${fe.id}_${dateStr}`)) return;
+                    upcomingFixedTotal += fe.amount;
+                    catUpcomingFixed[fe.categoryId] = (catUpcomingFixed[fe.categoryId] || 0) + fe.amount;
+                });
+            }
+            const projectedTotal = thisMonth ? Math.round((monthVariableSoFar / daysElapsedThisMonth) * daysInMonth + monthFixedSoFar + upcomingFixedTotal) : 0;
 
             // ---------- ③ 前月比・前年同月比（1日あたり） ----------
             const lastMonthEnd = new Date(monthStart); lastMonthEnd.setDate(monthStart.getDate() - 1);
@@ -1670,12 +1781,16 @@
                 }
             });
 
-            const catIds = new Set([...Object.keys(categoryCurrentTotal), ...Object.keys(categoryBaselineTotal)]);
+            const catIds = new Set([...Object.keys(categoryCurrentTotal), ...Object.keys(categoryBaselineTotal), ...Object.keys(catUpcomingFixed)]);
             const catChanges = [];
             catIds.forEach(catId => {
                 const currentTotal = categoryCurrentTotal[catId] || 0;
                 const baselineTotal = categoryBaselineTotal[catId] || 0;
-                const projectedCurrent = daysElapsedThisMonth > 0 ? (currentTotal / daysElapsedThisMonth) * daysInMonth : 0;
+                // [修正] 着地予測と同じく、固定費は実額＋予定額、変動費のみ日割りで外挿
+                const varPart = catVariableSoFar[catId] || 0;
+                const fixedPart = (catFixedSoFar[catId] || 0) + (catUpcomingFixed[catId] || 0);
+                const projectedCurrent = daysElapsedThisMonth > 0 ? (varPart / daysElapsedThisMonth) * daysInMonth + fixedPart : 0;
+                if (currentTotal === 0 && fixedPart === 0 && baselineTotal === 0) return;
                 const baselineMonthlyAvg = baselineTotal / baselineMonthsCountForCat;
                 const diffAmount = projectedCurrent - baselineMonthlyAvg;
                 if (Math.abs(diffAmount) < 1) return;
@@ -1697,7 +1812,7 @@
             }
             statsTxns.forEach(t => {
                 if (t.date >= last30StartStr && t.date <= todayStr) {
-                    const dow = new Date(t.date).getDay();
+                    const dow = parseDateStr(t.date).getDay();
                     if (dow === 0 || dow === 6) weekendSum += t.amount; else weekdaySum += t.amount;
                 }
             });
@@ -1890,7 +2005,7 @@
                     }
 
                     if (t.date) {
-                        const dObj = new Date(t.date);
+                        const dObj = parseDateStr(t.date);
                         if (!isNaN(dObj.getTime())) {
                             dayCounts[dObj.getDay()]++;
                             // YYYY-MM を抽出
@@ -1950,7 +2065,7 @@
                 const sortedDates = shopTxns.map(t => t.date).filter(Boolean).sort();
                 let monthsCount = 1;
                 if (sortedDates.length > 0) {
-                    const firstDate = new Date(sortedDates[0]);
+                    const firstDate = parseDateStr(sortedDates[0]);
                     firstDate.setHours(0, 0, 0, 0);
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -2096,7 +2211,7 @@
             let perDayText = '0';
             let elapsedDays = null;
             if (allDatesSorted.length > 0) {
-                const firstEverDate = new Date(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
+                const firstEverDate = parseDateStr(allDatesSorted[0]); firstEverDate.setHours(0, 0, 0, 0);
                 const today = new Date(); today.setHours(0, 0, 0, 0);
                 const effectiveStart = firstEverDate > periodStart ? firstEverDate : periodStart;
                 const effectiveEnd = today < periodEnd ? today : periodEnd;
@@ -2125,17 +2240,28 @@
                     }
                     html += `<div class="flex flex-col"><div class="flex justify-between items-end mb-1"><span class="text-[14px] font-semibold text-gray-800 truncate w-3/5">${escapeHTML(item.name)}</span><span class="text-[16px] font-bold text-gray-900">${displayVal}</span></div><div class="w-full bg-[rgba(60,60,67,0.08)] rounded-full h-[6px]"><div class="bg-[#007AFF] h-[6px] rounded-full transition-all duration-500" style="width: ${pct}%"></div></div>${rateHtml}</div>`;
                 });
-                html += `</div>`; if (arr.length > 5) { const dataStr = encodeURIComponent(JSON.stringify(arr)); html += `<button onclick="openStatsDetail('${escapeHTML(title)}', '${dataStr}', ${isCount}, ${perUnitDivisor || 'null'}, '${perUnitLabel}')" class="w-full mt-4 py-2.5 bg-gray-50 text-[#007AFF] font-bold text-[14px] rounded-xl active:bg-gray-100">すべて見る</button>`; }
+                html += `</div>`; if (arr.length > 5) {
+                    // [修正] データを onclick 文字列に埋め込まない（店名に ' が含まれると壊れる・スクリプト注入の恐れがあるため）
+                    const key = statsDetailRegistry.push({ title, arr, isCount, perUnitDivisor: perUnitDivisor || null, perUnitLabel }) - 1;
+                    html += `<button type="button" data-stats-detail="${key}" class="w-full mt-4 py-2.5 bg-gray-50 text-[#007AFF] font-bold text-[14px] rounded-xl active:bg-gray-100">すべて見る</button>`; }
                 html += `</div>`; return html;
             }
+            statsDetailRegistry = [];
             container.innerHTML = buildSection('カテゴリー別', catMap, state.categories, false, elapsedDays, '/日')
                 + buildSection('支払い方法別', payMap, state.paymentMethods, false, elapsedDays, '/日')
                 + buildSection('お店別 (金額)', shopAmtMap, null, false, elapsedDays, '/日')
                 + buildSection('お店別 (利用回数)', shopCntMap, null, true, monthsCountForFreq, '/月');
+            container.querySelectorAll('[data-stats-detail]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const entry = statsDetailRegistry[Number(btn.getAttribute('data-stats-detail'))];
+                    if (entry) openStatsDetail(entry.title, entry.arr, entry.isCount, entry.perUnitDivisor, entry.perUnitLabel);
+                });
+            });
         }
+        let statsDetailRegistry = [];
 
-        window.openStatsDetail = (title, dataStr, isCount, perUnitDivisor = null, perUnitLabel = '') => {
-            const arr = JSON.parse(decodeURIComponent(dataStr)); document.getElementById('title-stats-detail').textContent = title; const list = document.getElementById('list-stats-detail'); list.innerHTML = '';
+        window.openStatsDetail = (title, arrOrStr, isCount, perUnitDivisor = null, perUnitLabel = '') => {
+            const arr = Array.isArray(arrOrStr) ? arrOrStr : JSON.parse(decodeURIComponent(arrOrStr)); document.getElementById('title-stats-detail').textContent = title; const list = document.getElementById('list-stats-detail'); list.innerHTML = '';
             const maxVal = arr[0].val; const totalVal = arr.reduce((sum, item) => sum + item.val, 0);
             arr.forEach(item => {
                 const pct = Math.max((item.val / maxVal) * 100, 1); const share = Math.round((item.val / totalVal) * 100); const displayVal = isCount ? `${item.val}回` : `¥${item.val.toLocaleString()}`;
@@ -2159,9 +2285,9 @@
             sorted.forEach(fe => {
                 const cls = state.shopClasses.find(c => c.id === fe.classId) || { icon: '📦' }; const div = document.createElement('div'); div.className = 'ios-item clickable cursor-pointer'; div.onclick = () => openFixedEditor(fe.id);
                 const isPending = Boolean(fe.isPending || fe.amount === 0);
-                const amtLabel = isPending ? '<span class="text-[#FF3B30] font-bold text-[17px]">未定</span>' : `¥${fe.amount.toLocaleString()}`;
+                const amtLabel = isPending ? '<span class="text-[#FF3B30] font-bold text-[17px]">未定</span>' : `¥${Number(fe.amount).toLocaleString()}`;
                 
-                div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-[46px] shrink-0 bg-[#F2F2F7] rounded-lg py-1.5"><span class="text-[10px] text-gray-500 font-bold uppercase leading-none">毎月</span><span class="text-[16px] font-bold text-gray-900 leading-none mt-1">${fe.day}日</span></div><div class="flex flex-col overflow-hidden w-full pl-1"><span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${escapeHTML(fe.name)}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate">${escapeHTML(cls.icon)} ${escapeHTML(fe.shopName || 'お店未指定')}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">${amtLabel}</span></div>`;
+                div.innerHTML = `<div class="flex items-center gap-3 w-2/3"><div class="flex flex-col items-center justify-center w-[46px] shrink-0 bg-[#F2F2F7] rounded-lg py-1.5"><span class="text-[10px] text-gray-500 font-bold uppercase leading-none">毎月</span><span class="text-[16px] font-bold text-gray-900 leading-none mt-1">${escapeHTML(fe.day)}日</span></div><div class="flex flex-col overflow-hidden w-full pl-1"><span class="font-bold text-gray-900 truncate tracking-tight text-[16px]">${escapeHTML(fe.name)}</span><span class="text-[11px] text-gray-500 mt-0.5 truncate">${escapeHTML(cls.icon)} ${escapeHTML(fe.shopName || 'お店未指定')}</span></div></div><div class="flex flex-col items-end shrink-0"><span class="font-bold text-[18px] text-gray-900 tracking-tight">${amtLabel}</span></div>`;
                 containerDiv.appendChild(div);
             });
             list.appendChild(containerDiv);
@@ -2257,11 +2383,20 @@
             };
             if (editingFixedId) { 
                 const idx = state.fixedExpenses.findIndex(x => x.id === editingFixedId); 
-                if(idx > -1) state.fixedExpenses[idx] = newFE; 
+                if (idx > -1) {
+                    // 最終実行日は引き継ぐ（消すと過去分が再生成される恐れがあるため）
+                    if (state.fixedExpenses[idx].lastRunDate) newFE.lastRunDate = state.fixedExpenses[idx].lastRunDate;
+                    state.fixedExpenses[idx] = newFE;
+                }
             } else { 
+                // [修正] 登録した日が「毎月の追加日」と同じ場合、今日の分も追加されるようにする
+                const y = new Date(); y.setDate(y.getDate() - 1);
+                newFE.lastRunDate = toDateStr(y);
                 state.fixedExpenses.push(newFE); 
             }
-            saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses();
+            saveData(); closeModal('modal-fixed-editor');
+            processFixedExpenses();
+            renderFixedExpenses();
         };
 
         window.deleteFixedExpense = () => { showConfirm("この定期支出を削除しますか？", () => { state.fixedExpenses = state.fixedExpenses.filter(t => t.id !== editingFixedId); saveData(); closeModal('modal-fixed-editor'); renderFixedExpenses(); }); };
@@ -2408,19 +2543,32 @@
         };
 
         let sortables = {};
-        function buildSortableList(containerId, arrayName, formatHTML, clickActionStr) {
+        const DELETE_ICON_SVG = '<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>';
+        const hasSortable = () => typeof Sortable !== 'undefined';
+
+        // [修正] ID を onclick 文字列に埋め込まず、addEventListener で処理する（不正なIDによるスクリプト実行を防ぐ）
+        function buildRowElement(item, innerHTML, onClick, onDelete, extraRowClass = '') {
+            const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', item.id);
+            div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1 ${extraRowClass}"><button type="button" aria-label="削除" class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1">${DELETE_ICON_SVG}</button>${innerHTML}</div><div class="drag-handle shrink-0 w-12">≡</div>`;
+            const body = div.firstElementChild;
+            if (onClick) body.addEventListener('click', () => onClick(item.id));
+            body.querySelector('button').addEventListener('click', (e) => { e.stopPropagation(); onDelete(item.id); });
+            return div;
+        }
+
+        function buildSortableList(containerId, arrayName, formatHTML, onItemClick) {
             const list = document.getElementById(containerId); list.innerHTML = '';
             state[arrayName].forEach(item => {
-                const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', item.id); const onClick = clickActionStr ? clickActionStr.replace('{id}', item.id) : '';
-                div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1 cursor-pointer" onclick="${onClick}"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('${arrayName}', '${item.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button>${formatHTML(item)}</div><div class="drag-handle shrink-0 w-12">≡</div>`;
-                list.appendChild(div);
+                list.appendChild(buildRowElement(item, formatHTML(item), onItemClick, id => deleteItem(arrayName, id), 'cursor-pointer'));
             });
-            if(sortables[containerId]) sortables[containerId].destroy();
+            if(sortables[containerId]) { sortables[containerId].destroy(); delete sortables[containerId]; }
+            if (!hasSortable()) return; // 並び替えライブラリが読めない場合も一覧自体は表示する
             sortables[containerId] = new Sortable(list, { 
                 handle: '.drag-handle', 
                 animation: 150, 
                 ghostClass: 'opacity-50', 
                 onEnd: function (evt) { 
+                    if (evt.oldIndex === evt.newIndex) return;
                     const item = state[arrayName].splice(evt.oldIndex, 1)[0]; 
                     state[arrayName].splice(evt.newIndex, 0, item); 
                     saveData(); 
@@ -2435,36 +2583,65 @@
 
         function renderGroupedShopsList() {
             const container = document.getElementById('list-set-shops-container'); container.innerHTML = ''; shopSortables.forEach(s => s.destroy()); shopSortables = [];
-            state.shopClasses.forEach(cls => {
-                const header = document.createElement('h3'); header.className = "text-[12px] font-semibold text-gray-500 mb-1 mt-6 ml-2 tracking-wider"; header.textContent = cls.icon + ' ' + cls.name; container.appendChild(header);
-                const listDiv = document.createElement('div'); listDiv.className = "ios-list mb-0 pb-1 pt-1 min-h-[40px] rounded-[12px]"; listDiv.style.backgroundColor = 'var(--ios-card)'; listDiv.setAttribute('data-class-id', cls.id);
-                const classShops = state.shops.filter(s => s.classId === cls.id);
-                if (classShops.length === 0) { const empty = document.createElement('div'); empty.className = 'empty-zone'; empty.textContent = 'ドラッグして追加'; listDiv.appendChild(empty); }
-                classShops.forEach(shop => {
-                    const div = document.createElement('div'); div.className = 'ios-item px-0'; div.setAttribute('data-id', shop.id);
-                    div.innerHTML = `<div class="flex-1 flex items-center overflow-hidden pl-4 py-1" onclick="openShopEditor('${shop.id}')"><button class="text-[#FF3B30] mr-4 shrink-0 active:opacity-50 p-1" onclick="event.stopPropagation(); deleteItem('shops', '${shop.id}')"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button><span class="font-medium truncate text-gray-900">${escapeHTML(shop.name)}</span></div><div class="drag-handle shrink-0 w-12">≡</div>`;
-                    listDiv.appendChild(div);
+            // [修正] 削除された分類に属していたお店も「未分類」として表示し、編集・移動・削除できるようにする
+            const classIds = new Set(state.shopClasses.map(c => c.id));
+            const groups = state.shopClasses.map(cls => ({ id: cls.id, label: cls.icon + ' ' + cls.name, shops: state.shops.filter(s => s.classId === cls.id) }));
+            const orphanShops = state.shops.filter(s => !classIds.has(s.classId));
+            if (orphanShops.length > 0) groups.push({ id: '', label: '📦 未分類（分類が削除されたお店）', shops: orphanShops, isOrphan: true });
+
+            groups.forEach(group => {
+                const header = document.createElement('h3'); header.className = "text-[12px] font-semibold text-gray-500 mb-1 mt-6 ml-2 tracking-wider"; header.textContent = group.label; container.appendChild(header);
+                const listDiv = document.createElement('div'); listDiv.className = "ios-list mb-0 pb-1 pt-1 min-h-[40px] rounded-[12px]"; listDiv.style.backgroundColor = 'var(--ios-card)'; listDiv.setAttribute('data-class-id', group.id);
+                if (group.shops.length === 0) { const empty = document.createElement('div'); empty.className = 'empty-zone'; empty.textContent = 'ドラッグして追加'; listDiv.appendChild(empty); }
+                group.shops.forEach(shop => {
+                    listDiv.appendChild(buildRowElement(shop, `<span class="font-medium truncate text-gray-900">${escapeHTML(shop.name)}</span>`, id => openShopEditor(id), id => deleteItem('shops', id)));
                 });
                 container.appendChild(listDiv);
+                if (!hasSortable()) return;
                 const sortable = new Sortable(listDiv, {
-                    group: 'sharedShops', handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50',
+                    group: group.isOrphan ? { name: 'sharedShops', put: false } : 'sharedShops', handle: '.drag-handle', animation: 150, ghostClass: 'opacity-50',
                     onStart: function(evt) { document.querySelectorAll('.empty-zone').forEach(el => el.style.display = 'none'); },
-                    onEnd: function(evt) { const shopObj = state.shops.find(s => s.id === evt.item.getAttribute('data-id')); if(shopObj) shopObj.classId = evt.to.getAttribute('data-class-id'); const newShopsOrder = []; const seenIds = new Set(); document.querySelectorAll('#list-set-shops-container .ios-item').forEach(el => { const sObj = state.shops.find(s => s.id === el.getAttribute('data-id')); if(sObj) { newShopsOrder.push(sObj); seenIds.add(sObj.id); } }); state.shops.forEach(s => { if (!seenIds.has(s.id)) newShopsOrder.push(s); }); state.shops = newShopsOrder; saveData(); renderGroupedShopsList(); }
+                    onEnd: function(evt) {
+                        const shopObj = state.shops.find(s => s.id === evt.item.getAttribute('data-id'));
+                        const toClassId = evt.to.getAttribute('data-class-id');
+                        if (shopObj && toClassId) shopObj.classId = toClassId;
+                        const newShopsOrder = []; const seenIds = new Set();
+                        document.querySelectorAll('#list-set-shops-container .ios-item').forEach(el => { const sObj = state.shops.find(s => s.id === el.getAttribute('data-id')); if(sObj && !seenIds.has(sObj.id)) { newShopsOrder.push(sObj); seenIds.add(sObj.id); } });
+                        state.shops.forEach(s => { if (!seenIds.has(s.id)) newShopsOrder.push(s); });
+                        state.shops = newShopsOrder; saveData(); renderGroupedShopsList();
+                    }
                 });
                 shopSortables.push(sortable);
             });
         }
 
-        window.deleteItem = (arrayName, id) => showConfirm("削除しますか？", () => { 
-            state[arrayName] = state[arrayName].filter(i=>i.id!==id); 
-            saveData(); 
-            renderPanelLists(); 
-            if(arrayName === 'shortcuts') renderShortcuts(); 
-            if(arrayName === 'timeSlots') { 
-                const curTime = document.getElementById('inp-time').value || '12:00'; 
-                renderTimePills(curTime, true); 
-            } 
-        });
+        window.deleteItem = (arrayName, id) => {
+            // [修正] 一覧の⊖ボタンからも「最低1つ必要」のチェックを行う
+            if (arrayName === 'timeSlots' && state.timeSlots.length <= 1) { showAlert("少なくとも1つの時間帯が必要です。"); return; }
+            if (arrayName === 'quickTimes' && state.quickTimes.length <= 1) { showAlert("リストには少なくとも1つの時刻が必要です。"); return; }
+            // [修正] 使用中の項目を消すときは影響を伝える
+            let msg = "削除しますか？";
+            if (arrayName === 'shopClasses') {
+                const n = state.shops.filter(s => s.classId === id).length;
+                if (n > 0) msg = `この分類には ${n}件 のお店があります。削除すると、それらのお店は「未分類」に移動します（お店リストから別の分類へドラッグできます）。削除しますか？`;
+            } else if (arrayName === 'categories') {
+                const n = state.transactions.filter(t => t.categoryId === id).length;
+                if (n > 0) msg = `このカテゴリーは ${n}件 の記録で使われています。削除すると、それらの記録のカテゴリーは「不明」と表示されます。削除しますか？`;
+            } else if (arrayName === 'paymentMethods') {
+                const n = state.transactions.filter(t => t.paymentId === id).length;
+                if (n > 0) msg = `この支払い方法は ${n}件 の記録で使われています。削除すると、それらの記録の支払い方法は「不明」と表示されます。削除しますか？`;
+            }
+            showConfirm(msg, () => { 
+                state[arrayName] = state[arrayName].filter(i=>i.id!==id); 
+                saveData(); 
+                renderPanelLists(); 
+                if(arrayName === 'shortcuts') renderShortcuts(); 
+                if(arrayName === 'timeSlots') { 
+                    const curTime = document.getElementById('inp-time').value || '12:00'; 
+                    renderTimePills(curTime, true); 
+                } 
+            });
+        };
 
         window.renameItem = (arrayName, id) => {
             const item = state[arrayName].find(i=>i.id===id); if(!item) return; showPrompt(arrayName === 'shopClasses' ? "分類とアイコン (例: 🍽️外食)" : "新しい名前", arrayName === 'shopClasses' ? (item.icon + ' ' + item.name) : item.name, val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } item.icon = icon; item.name = name; } else { item.name = val.trim(); } saveData(); renderPanelLists(); } });
@@ -2472,12 +2649,12 @@
         window.addItem = (arrayName, promptTitle) => { showPrompt(promptTitle, "", val => { if(val) { if(arrayName === 'shopClasses') { let icon = '📦'; let name = val; const match = val.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(.*)$/u); if(match){ icon = match[1]; name = match[2].trim(); } else { name = val.trim(); } state[arrayName].push({id: generateId(), name: name, icon: icon}); } else { state[arrayName].push({id: generateId(), name: val.trim()}); } saveData(); renderPanelLists(); } }); };
 
         function renderPanelLists() {
-            buildSortableList('list-set-time-slots', 'timeSlots', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900">${escapeHTML(i.name)}</span><span class="text-[#007AFF] font-bold text-[15px]">${i.time}</span></div>`, `openTimeSlotModal('{id}')`);
-            buildSortableList('list-set-quick-times', 'quickTimes', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900 tracking-wide">${i.time}</span><span class="text-xs text-gray-400">タップで変更</span></div>`, `openQuickTimeModal('{id}')`);
-            buildSortableList('list-set-payments', 'paymentMethods', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, `renameItem('paymentMethods', '{id}')`);
-            buildSortableList('list-set-categories', 'categories', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, `renameItem('categories', '{id}')`);
-            buildSortableList('list-set-classes', 'shopClasses', i => `<span class="font-medium truncate text-[17px] text-gray-900"><span class="text-xl mr-2">${escapeHTML(i.icon)}</span>${escapeHTML(i.name)}</span>`, `renameItem('shopClasses', '{id}')`);
-            buildSortableList('list-set-shortcuts', 'shortcuts', i => `<div class="flex flex-col"><span class="font-medium text-gray-900 truncate">${escapeHTML(i.name)} <span class="text-[#007AFF] text-sm ml-1">${i.amount ? '¥'+i.amount.toLocaleString() : ''}</span></span><span class="text-[11px] text-gray-500">${escapeHTML(i.shopName || 'お店指定なし')}</span></div>`, `openShortcutEditor('{id}')`);
+            buildSortableList('list-set-time-slots', 'timeSlots', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900">${escapeHTML(i.name)}</span><span class="text-[#007AFF] font-bold text-[15px]">${escapeHTML(i.time)}</span></div>`, id => openTimeSlotModal(id));
+            buildSortableList('list-set-quick-times', 'quickTimes', i => `<div class="flex items-center justify-between w-full pr-2"><span class="font-medium text-gray-900 tracking-wide">${escapeHTML(i.time)}</span><span class="text-xs text-gray-400">タップで変更</span></div>`, id => openQuickTimeModal(id));
+            buildSortableList('list-set-payments', 'paymentMethods', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, id => renameItem('paymentMethods', id));
+            buildSortableList('list-set-categories', 'categories', i => `<span class="font-medium truncate text-gray-900">${escapeHTML(i.name)}</span>`, id => renameItem('categories', id));
+            buildSortableList('list-set-classes', 'shopClasses', i => `<span class="font-medium truncate text-[17px] text-gray-900"><span class="text-xl mr-2">${escapeHTML(i.icon)}</span>${escapeHTML(i.name)}</span>`, id => renameItem('shopClasses', id));
+            buildSortableList('list-set-shortcuts', 'shortcuts', i => `<div class="flex flex-col"><span class="font-medium text-gray-900 truncate">${escapeHTML(i.name)} <span class="text-[#007AFF] text-sm ml-1">${i.amount ? '¥'+Number(i.amount).toLocaleString() : ''}</span></span><span class="text-[11px] text-gray-500">${escapeHTML(i.shopName || 'お店指定なし')}</span></div>`, id => openShortcutEditor(id));
             renderGroupedShopsList();
         }
 
@@ -2492,8 +2669,32 @@
             const name = document.getElementById('ed-shop-name').value.trim(); 
             if (!name) { showAlert("店名を入力してください"); return; }
             const newShop = { id: editingShopId || generateId(), name: name, classId: document.getElementById('ed-shop-class').value, categoryId: document.getElementById('ed-shop-cat').value, paymentId: document.getElementById('ed-shop-pay').value, memo: document.getElementById('ed-shop-memo').value.trim() };
-            if (editingShopId) { const idx = state.shops.findIndex(x => x.id === editingShopId); if(idx > -1) state.shops[idx] = newShop; } else { state.shops.push(newShop); } saveData(); closeModal('modal-shop-editor'); renderPanelLists(); if (isFlowFromInput) { isFlowFromInput = false; openDetailModal(newShop); }
+            let renamedCount = 0;
+            if (editingShopId) {
+                const idx = state.shops.findIndex(x => x.id === editingShopId);
+                if (idx > -1) {
+                    const oldShop = state.shops[idx];
+                    if (oldShop.name !== newShop.name) renamedCount = propagateShopRename(oldShop, newShop.name);
+                    state.shops[idx] = newShop;
+                }
+            } else { state.shops.push(newShop); }
+            saveData(); closeModal('modal-shop-editor'); renderPanelLists();
+            if (renamedCount > 0) showAlert(`過去の記録など ${renamedCount}件 のお店の名前も「${newShop.name}」に更新しました。`);
+            if (isFlowFromInput) { isFlowFromInput = false; openDetailModal(newShop); }
         };
+
+        // [修正] お店の名前を変えたとき、過去の記録・定期支出・クイック入力のお店名も追従させる
+        //   （記録はお店を名前で参照しているため。同じ名前のお店が他の分類にもある場合は分類も一致するものだけ）
+        function propagateShopRename(oldShop, newName) {
+            const sameNameOthers = state.shops.some(s => s.id !== oldShop.id && s.name === oldShop.name);
+            const matches = x => x && x.shopName === oldShop.name && (!sameNameOthers || x.classId === oldShop.classId);
+            let count = 0;
+            ['transactions', 'fixedExpenses', 'shortcuts'].forEach(key => {
+                (state[key] || []).forEach(x => { if (matches(x)) { x.shopName = newName; count++; } });
+            });
+            if (statsSelectedShopName === oldShop.name) statsSelectedShopName = newName;
+            return count;
+        }
 
         window.openShortcutEditor = (id = null) => {
             editingShortcutId = id; document.getElementById('title-shortcut-editor').textContent = (id && typeof id === 'string') ? 'クイック入力の編集' : '新しいクイック入力'; populateSelect('sh-class', state.shopClasses, null); populateSelect('sh-cat', state.categories, null); populateSelect('sh-pay', state.paymentMethods, null);
@@ -2532,6 +2733,8 @@
         };
 
         /* ==================== Firebase クラウド同期 ==================== */
+        // ※ Firestore 上のデータ構造（users/{uid}/{コレクション名}/{id}）は旧バージョンと完全に同じです。
+        //   新しいコレクションやフィールドは作りません（セキュリティルールの変更も不要）。
         const firebaseConfig = {
             apiKey: "AIzaSyD9pqm3qVbxf9gGxl9us-xq_Vuqpjx_8As",
             authDomain: "expense-tracker-5e542.firebaseapp.com",
@@ -2548,7 +2751,11 @@
                 firebase.initializeApp(firebaseConfig);
                 auth = firebase.auth();
                 db = firebase.firestore();
-                try { db.enablePersistence({ synchronizeTabs: true }); } catch (e) { console.warn('Firestore persistence not available', e); }
+                // [修正] enablePersistence は Promise を返すため try/catch では失敗を捕まえられない
+                try {
+                    const p = db.enablePersistence({ synchronizeTabs: true });
+                    if (p && typeof p.catch === 'function') p.catch(e => console.warn('Firestore persistence not available', e));
+                } catch (e) { console.warn('Firestore persistence not available', e); }
             } catch (e) {
                 console.error('Firebase初期化失敗', e);
                 firebaseAvailable = false;
@@ -2557,6 +2764,11 @@
 
         const SYNCED_COLLECTIONS = ['transactions', 'timeSlots', 'quickTimes', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses'];
         const ORDERED_COLLECTIONS = new Set(['timeSlots', 'quickTimes', 'shopClasses', 'categories', 'paymentMethods', 'shops', 'shortcuts', 'fixedExpenses']);
+        const DEFAULTABLE_COLLECTIONS = ['timeSlots', 'quickTimes', 'shopClasses', 'categories', 'paymentMethods', 'shops'];
+        // [修正] Firestore の1バッチは最大500操作。余裕を持って400件ずつに分割してコミットする
+        const MAX_BATCH_OPS = 400;
+        // 「この端末がクラウドに存在すると確認したID」の記録（端末内のみ。サーバーには保存しない）
+        const SYNC_META_KEY = 'premium_tracker_syncmeta_v1';
 
         function withOrder(arr, name) {
             if (!ORDERED_COLLECTIONS.has(name)) return arr;
@@ -2565,12 +2777,50 @@
         function sortByOrder(arr) {
             return arr.slice().sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
         }
+        // キーの並び順に左右されない比較用 JSON（Firestore から返るオブジェクトはキー順が変わることがあるため）
+        function stableStringify(v) {
+            if (v === null || typeof v !== 'object') return JSON.stringify(v);
+            if (Array.isArray(v)) return '[' + v.map(x => (x === undefined ? 'null' : stableStringify(x))).join(',') + ']';
+            return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+        }
+        function buildJsonMap(arr) {
+            return new Map((arr || []).filter(x => x && x.id).map(item => [item.id, stableStringify(item)]));
+        }
+        // Firestore は undefined を含むとエラーになるため、JSON を経由して除去する
+        function toFirestoreData(item) { return JSON.parse(JSON.stringify(item)); }
 
-        let collRefs = {};           
-        let lastSyncedMaps = {};     
+        let collRefs = {};
+        let lastSyncedMaps = {};
         SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = new Map(); });
         let syncDebounceTimer = null;
         let cloudReady = false;
+        let currentUid = null;
+        let snapshotUnsubs = [];
+        let localDirty = false;      // saveData 後、まだクラウドへ送る処理を始めていない変更がある
+        let syncInFlight = 0;        // 送信中のコミット数
+        let bootstrapToken = 0;      // ログイン切り替え時に古い初期化処理を無効化するための番号
+
+        function loadSyncMeta() {
+            try {
+                const raw = localStorage.getItem(SYNC_META_KEY);
+                if (!raw) return null;
+                const m = JSON.parse(raw);
+                if (!m || typeof m.uid !== 'string' || !m.ids || typeof m.ids !== 'object') return null;
+                return m;
+            } catch (e) { return null; }
+        }
+        function persistSyncMeta() {
+            if (!currentUid) return;
+            try {
+                const ids = {};
+                SYNCED_COLLECTIONS.forEach(name => { ids[name] = Array.from(lastSyncedMaps[name].keys()); });
+                localStorage.setItem(SYNC_META_KEY, JSON.stringify({ uid: currentUid, ids }));
+            } catch (e) { console.warn('sync meta save failed', e); }
+        }
+        function saveLocalOnly() {
+            try { localStorage.setItem('premium_tracker_v18', JSON.stringify(state)); }
+            catch (err) { console.error("Local sync write error:", err); }
+        }
 
         function setSyncBadge(mode, errText = "") {
             const detail = document.getElementById('lbl-sync-detail');
@@ -2592,122 +2842,237 @@
 
         function syncToCloud() {
             if (!firebaseAvailable || !cloudReady) return;
+            localDirty = true;
             setSyncBadge('syncing');
             clearTimeout(syncDebounceTimer);
             syncDebounceTimer = setTimeout(doSyncNow, 350);
         }
 
-        function diffCollectionIntoBatch(batch, name) {
-            const localArr = withOrder(state[name] || [], name);
-            const currentMap = new Map(localArr.map(item => [item.id, JSON.stringify(item)]));
+        function diffCollectionOps(name, ops) {
+            const localArr = withOrder(state[name] || [], name).filter(x => x && x.id);
+            const currentMap = new Map();
             const lastMap = lastSyncedMaps[name];
-            let ops = 0;
-            currentMap.forEach((json, id) => {
-                if (lastMap.get(id) !== json) { 
-                    batch.set(collRefs[name].doc(id), JSON.parse(json)); 
-                    ops++; 
-                }
+            localArr.forEach(item => {
+                const json = stableStringify(item);
+                currentMap.set(item.id, json);
+                if (lastMap.get(item.id) !== json) ops.push({ type: 'set', ref: collRefs[name].doc(item.id), data: toFirestoreData(item) });
             });
             lastMap.forEach((json, id) => {
-                if (!currentMap.has(id)) { 
-                    batch.delete(collRefs[name].doc(id)); 
-                    ops++; 
-                }
+                if (!currentMap.has(id)) ops.push({ type: 'delete', ref: collRefs[name].doc(id) });
             });
-            return { currentMap, ops };
+            return currentMap;
+        }
+
+        async function commitOpsInChunks(ops) {
+            for (let i = 0; i < ops.length; i += MAX_BATCH_OPS) {
+                const batch = db.batch();
+                ops.slice(i, i + MAX_BATCH_OPS).forEach(op => {
+                    if (op.type === 'set') batch.set(op.ref, op.data); else batch.delete(op.ref);
+                });
+                await batch.commit();
+            }
         }
 
         async function doSyncNow() {
-            if (!collRefs.transactions) return;
+            clearTimeout(syncDebounceTimer); syncDebounceTimer = null;
+            if (!cloudReady || !collRefs.transactions) return;
+            const myToken = bootstrapToken;
+            localDirty = false;
+            syncInFlight++;
             try {
-                const batch = db.batch();
-                let totalOps = 0;
+                const ops = [];
                 const newMaps = {};
-                SYNCED_COLLECTIONS.forEach(name => {
-                    const { currentMap, ops } = diffCollectionIntoBatch(batch, name);
-                    newMaps[name] = currentMap;
-                    totalOps += ops;
-                });
-                if (totalOps > 0) await batch.commit();
+                SYNCED_COLLECTIONS.forEach(name => { newMaps[name] = diffCollectionOps(name, ops); });
+                if (ops.length > 0) await commitOpsInChunks(ops);
+                if (myToken !== bootstrapToken) return;
                 SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = newMaps[name]; });
+                persistSyncMeta();
                 setSyncBadge('ok');
             } catch (e) {
                 console.error('クラウド同期エラー:', e);
                 setSyncBadge('error', e.message);
+            } finally {
+                syncInFlight--;
             }
         }
+        // 未送信の変更を今すぐ送る（復元直後のリロード前や、アプリを閉じる直前など）
+        async function flushSync() {
+            if (!cloudReady) return;
+            if (localDirty || syncDebounceTimer) await doSyncNow();
+        }
 
+        let refreshScheduled = false;
         function refreshCurrentView() {
-            updateUnsetBadge();
-            const views = [renderShortcuts, updateFilterButtonsUI, renderCalendar, renderStats, renderFixedExpenses];
-            views.forEach(fn => {
-                try { fn(); } catch (e) { console.warn("View re-render warning:", e); }
+            // [改善] スナップショットが連続で届いても再描画は1フレームに1回にまとめる
+            if (refreshScheduled) return;
+            refreshScheduled = true;
+            const run = () => {
+                refreshScheduled = false;
+                updateUnsetBadge();
+                const views = [renderShortcuts, updateFilterButtonsUI, renderCalendar, renderStats, renderFixedExpenses];
+                views.forEach(fn => {
+                    try { fn(); } catch (e) { console.warn("View re-render warning:", e); }
+                });
+            };
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run); else setTimeout(run, 0);
+        }
+
+        // [修正] 未送信のローカル変更がある間に他端末の更新が届いた場合、ローカル変更を消さずに統合する
+        //  - ローカルで変更・追加・削除した項目 → ローカルを優先
+        //  - ローカルで触っていない項目 → リモートの内容を採用（削除も反映）
+        function mergeRemoteWithLocal(name, remoteArr, baseMap) {
+            const localArr = state[name] || [];
+            const localOrdered = withOrder(localArr, name);
+            const localMap = new Map(localOrdered.filter(x => x && x.id).map(i => [i.id, stableStringify(i)]));
+            const localChanged = id => localMap.get(id) !== baseMap.get(id);
+            let anyLocalChange = false;
+            localMap.forEach((_, id) => { if (localChanged(id)) anyLocalChange = true; });
+            baseMap.forEach((_, id) => { if (!localMap.has(id)) anyLocalChange = true; });
+            if (!anyLocalChange) return remoteArr;
+
+            const remoteMap = new Map(remoteArr.map(i => [i.id, i]));
+            const result = [];
+            const seen = new Set();
+            localArr.forEach(item => {
+                if (!item || !item.id) return;
+                seen.add(item.id);
+                if (localChanged(item.id)) result.push(item);
+                else if (remoteMap.has(item.id)) result.push(remoteMap.get(item.id));
+                // ローカル未変更 かつ リモートで削除 → 捨てる
             });
+            remoteArr.forEach(item => {
+                if (seen.has(item.id)) return;
+                const locallyDeleted = baseMap.has(item.id) && !localMap.has(item.id);
+                if (!locallyDeleted) result.push(item);
+            });
+            return result;
+        }
+
+        function detachRealtimeListeners() {
+            snapshotUnsubs.forEach(unsub => { try { unsub(); } catch (e) {} });
+            snapshotUnsubs = [];
         }
 
         function attachRealtimeListeners() {
+            detachRealtimeListeners();
+            const myToken = bootstrapToken;
             SYNCED_COLLECTIONS.forEach(name => {
-                collRefs[name].onSnapshot(snap => {
+                const unsub = collRefs[name].onSnapshot(snap => {
+                    if (myToken !== bootstrapToken) return;
                     let arr = [];
                     snap.forEach(d => arr.push(d.data()));
-                    lastSyncedMaps[name] = new Map(arr.map(item => [item.id, JSON.stringify(item)]));
                     if (ORDERED_COLLECTIONS.has(name)) arr = sortByOrder(arr);
-                    state[name] = arr;
-                    try {
-                        localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
-                    } catch (err) {
-                        console.error("Local sync write error:", err);
-                    }
+                    const baseMap = lastSyncedMaps[name];
+                    const hasPendingLocal = localDirty || syncInFlight > 0;
+                    const nextArr = hasPendingLocal ? mergeRemoteWithLocal(name, arr, baseMap) : arr;
+                    lastSyncedMaps[name] = buildJsonMap(arr);
+                    state[name] = nextArr;
+                    ensureMinimumSettings();
+                    saveLocalOnly();
+                    persistSyncMeta();
                     refreshCurrentView();
+                    if (hasPendingLocal && !syncDebounceTimer && syncInFlight === 0) syncToCloud();
                 }, err => {
                     console.error(`${name} のリアルタイム同期監視でエラー:`, err);
                     setSyncBadge('error', err.message);
                 });
+                snapshotUnsubs.push(unsub);
             });
         }
 
+        // 時間帯・クイック時刻が空にならないようにする（旧 initData と同じ保証）
+        function ensureMinimumSettings() {
+            if (!state.timeSlots || state.timeSlots.length === 0) state.timeSlots = JSON.parse(JSON.stringify(DEFAULT_STATE.timeSlots));
+            if (!state.quickTimes || state.quickTimes.length === 0) state.quickTimes = JSON.parse(JSON.stringify(DEFAULT_STATE.quickTimes));
+        }
+
         async function bootstrapCloudSync(uid) {
+            const myToken = ++bootstrapToken;
+            detachRealtimeListeners();
+            cloudReady = false;
+            currentUid = uid;
+            collRefs = {};
             SYNCED_COLLECTIONS.forEach(name => { collRefs[name] = db.collection('users').doc(uid).collection(name); });
 
             const snaps = {};
             await Promise.all(SYNCED_COLLECTIONS.map(async name => { snaps[name] = await collRefs[name].get(); }));
+            if (myToken !== bootstrapToken) return;
 
-            const batch = db.batch();
-            let hasBatchOps = false;
+            // この端末の同期記録（前回どのアカウントで、どのIDがクラウドにあったか）
+            const meta = loadSyncMeta();
+            const sameAccount = Boolean(meta && meta.uid === uid);
+            const otherAccount = Boolean(meta && meta.uid !== uid);
+            const anyFromCache = SYNCED_COLLECTIONS.some(name => snaps[name].metadata && snaps[name].metadata.fromCache);
+            const remoteTotallyEmpty = SYNCED_COLLECTIONS.every(name => snaps[name].empty);
+            // キャッシュからの読み込み（オフライン）や、クラウドが丸ごと空の場合は「リモートで削除された」と判断しない（安全側）
+            const canPrune = sameAccount && !anyFromCache && !remoteTotallyEmpty;
 
+            const ops = [];
             SYNCED_COLLECTIONS.forEach(name => {
                 let remoteItems = snaps[name].docs.map(d => d.data());
                 if (ORDERED_COLLECTIONS.has(name)) remoteItems = sortByOrder(remoteItems);
                 const remoteIds = new Set(remoteItems.map(x => x.id));
-                const localOnly = (state[name] || []).filter(x => x && !remoteIds.has(x.id));
+                const knownIds = new Set((meta && meta.ids && Array.isArray(meta.ids[name])) ? meta.ids[name] : []);
+
+                let localOnly = (state[name] || []).filter(x => x && x.id && !remoteIds.has(x.id));
+                if (sameAccount && canPrune) {
+                    // [修正] 以前クラウドにあったのに今は無い = 他の端末で削除された → 復活させない
+                    localOnly = localOnly.filter(x => !knownIds.has(x.id));
+                } else if (otherAccount) {
+                    // [修正] 別アカウントのデータを混ぜない。ログアウト中に新しく作った分だけ引き継ぐ
+                    localOnly = localOnly.filter(x => !knownIds.has(x.id));
+                }
 
                 let merged = remoteItems.concat(localOnly);
+                if (otherAccount && merged.length === 0 && DEFAULTABLE_COLLECTIONS.includes(name)) {
+                    // 新しいアカウントで設定が空になる場合は初期設定を入れる
+                    merged = JSON.parse(JSON.stringify(DEFAULT_STATE[name]));
+                    localOnly = merged;
+                }
 
                 if (localOnly.length > 0 && ORDERED_COLLECTIONS.has(name)) {
                     merged = withOrder(merged, name);
-                    merged.forEach(item => { batch.set(collRefs[name].doc(item.id), item); hasBatchOps = true; });
+                    merged.forEach(item => ops.push({ type: 'set', ref: collRefs[name].doc(item.id), data: toFirestoreData(item) }));
                 } else {
-                    localOnly.forEach(item => { batch.set(collRefs[name].doc(item.id), item); hasBatchOps = true; });
+                    localOnly.forEach(item => ops.push({ type: 'set', ref: collRefs[name].doc(item.id), data: toFirestoreData(item) }));
                 }
 
                 state[name] = merged;
-                lastSyncedMaps[name] = new Map(merged.map(item => [item.id, JSON.stringify(item)]));
+                lastSyncedMaps[name] = buildJsonMap(merged);
             });
+            ensureMinimumSettings();
 
-            if (hasBatchOps) await batch.commit();
+            if (ops.length > 0) await commitOpsInChunks(ops);
+            if (myToken !== bootstrapToken) return;
 
-            try {
-                localStorage.setItem('premium_tracker_v18', JSON.stringify(state));
-            } catch (err) {
-                console.error("Local bootstrap cache save error:", err);
-            }
+            saveLocalOnly();
+            persistSyncMeta();
             cloudReady = true;
             attachRealtimeListeners();
             refreshCurrentView();
             setSyncBadge('ok');
+            // 初期化中に入力された変更があれば送る
+            syncToCloud();
         }
 
-        function doSignOut() { if (firebaseAvailable && auth) auth.signOut(); }
+        // [修正] ログアウト時にリアルタイム監視を確実に解除し、同期状態をリセットする
+        function resetCloudState() {
+            bootstrapToken++;
+            detachRealtimeListeners();
+            clearTimeout(syncDebounceTimer); syncDebounceTimer = null;
+            cloudReady = false; collRefs = {}; currentUid = null;
+            localDirty = false;
+            SYNCED_COLLECTIONS.forEach(name => { lastSyncedMaps[name] = new Map(); });
+        }
+
+        async function doSignOut() {
+            if (!firebaseAvailable || !auth) return;
+            try { await flushSync(); } catch (e) {}
+            resetCloudState();
+            // ※ 端末内のデータは残します（ログアウト後もこの端末で使い続けられるように）。
+            //   別のアカウントでログインした場合は、そのアカウントのデータに置き換わり、混ざりません。
+            auth.signOut();
+        }
 
         function updateSyncPanelUI(state_) {
             const signedOutBox = document.getElementById('sync-panel-signedout');
@@ -2766,26 +3131,31 @@
 
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
+                    if (currentUid === user.uid && cloudReady) return; // 二重初期化を防ぐ
                     const emailLbl = document.getElementById('lbl-account-email');
                     if (emailLbl) emailLbl.textContent = user.email || user.displayName || 'ログイン中';
                     updateSyncPanelUI('signedin');
                     document.getElementById('lbl-sync-detail').textContent = '同期中…';
                     try {
                         await bootstrapCloudSync(user.uid);
-                        document.getElementById('lbl-sync-detail').textContent = '正常に同期されています';
+                        if (cloudReady) document.getElementById('lbl-sync-detail').textContent = '正常に同期されています';
                     } catch (e) {
                         console.error('クラウド同期の初期化失敗:', e);
                         if (e && e.code === 'permission-denied') {
+                            resetCloudState();
                             await auth.signOut();
                             showAlert('このアカウントにはFirestoreへのアクセス権限がありません。Firebaseコンソールのセキュリティルールをご確認ください。');
                         } else {
                             setSyncBadge('error', e.message);
                         }
                     }
+                    // [修正] 定期支出の自動追加は、クラウドの最新状態を読み込んでから行う（端末間での重複・削除済みの復活を防ぐ）
+                    allowFixedProcessing();
                 } else {
-                    cloudReady = false; collRefs = {};
+                    resetCloudState();
                     document.getElementById('auth-gate-status').textContent = '';
                     updateSyncPanelUI('signedout');
+                    allowFixedProcessing();
                 }
             });
         } else {
@@ -2794,8 +3164,16 @@
             if (emailLbl) emailLbl.textContent = '同期オフ(オフライン)';
         }
 
+        // アプリを閉じる・裏に回す直前に、未送信の変更を送る
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') { flushSync().catch(() => {}); }
+            else { checkFixedExpensesDateChange(); }
+        });
+        window.addEventListener('pagehide', () => { flushSync().catch(() => {}); });
+
         // アプリ起動
         initData();
+        if (!firebaseAvailable) allowFixedProcessing();
         updateAmount();
         updateFilterButtonsUI();
 
@@ -2803,3 +3181,13 @@
         attachSwipeForView('stats-content', () => shiftStatsDate(1), () => shiftStatsDate(-1));
 
         switchView('main', 'input');
+
+        // [追加] オフライン起動用の Service Worker と、端末内データの削除防止のお願い
+        if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service Worker 登録失敗', err));
+            });
+        }
+        if (navigator.storage && typeof navigator.storage.persist === 'function') {
+            navigator.storage.persisted().then(p => { if (!p) return navigator.storage.persist(); }).catch(() => {});
+        }

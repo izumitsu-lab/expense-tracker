@@ -6,17 +6,25 @@
     <title>Expense Tracker</title>
     <link rel="icon" type="image/png" href="favicon-32.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <!-- ホーム画面に追加して使うための設定（オフライン起動・Safari のデータ自動削除対策） -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#F2F2F7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="家計簿">
     
-    <!-- Tailwind CSS (固定バージョン) -->
-    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
-    <!-- SortableJS (固定バージョン) -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <!-- SortableJS 1.15.2（CDN から同梱に変更。オフラインでも動作） -->
+    <script src="vendor/Sortable.min.js"></script>
     <!-- Firebase SDK (固定バージョン) -->
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
     <link rel="stylesheet" href="styles.css">
+    <!-- Tailwind CSS 3.4.1（CDN の実行時生成から、ビルド済み CSS の同梱に変更。見た目は同じ） -->
+    <!-- ※ 旧 CDN 版と同じく styles.css より後に読み込む（優先順位を同じにするため） -->
+    <link rel="stylesheet" href="tailwind.css">
 </head>
 <body>
 
@@ -50,7 +58,7 @@
                             <button class="numpad-btn" data-val="3">3</button>
                             <button class="numpad-btn transparent text-gray-400 font-semibold" data-val="C">C</button>
                             <button class="numpad-btn" data-val="0">0</button>
-                            <button class="numpad-btn transparent text-gray-500" data-val="BACK">
+                            <button class="numpad-btn transparent text-gray-500" data-val="BACK" aria-label="1文字消す">
                                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z"></path></svg>
                             </button>
                         </div>
@@ -115,9 +123,9 @@
                 <div id="stats-period-header" class="hidden">
                     <div class="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-[rgba(0,0,0,0.03)]">
                         <div class="flex justify-between items-center mb-3">
-                            <button onclick="shiftStatsDate(-1)" class="p-1.5 -ml-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
+                            <button onclick="shiftStatsDate(-1)" aria-label="前へ" class="p-1.5 -ml-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
                             <span class="text-gray-900 text-[15px] font-extrabold tracking-wide" id="lbl-stats-period"></span>
-                            <button onclick="shiftStatsDate(1)" class="p-1.5 -mr-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
+                            <button onclick="shiftStatsDate(1)" aria-label="次へ" class="p-1.5 -mr-1.5 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
                         </div>
                         <span class="text-[12px] font-semibold text-gray-400">合計支出</span>
                         <div class="flex items-baseline gap-1.5 my-1">
@@ -161,11 +169,11 @@
                         <!-- カレンダー -->
                         <div class="relative w-9 h-9 flex items-center justify-center bg-[rgba(0,122,255,0.1)] rounded-full text-[#007AFF] active:opacity-60 shrink-0">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            <input type="date" id="cal-date-picker" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                            <input type="date" id="cal-date-picker" aria-label="日付を選んで移動" onchange="jumpToDate(this.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
                         </div>
 
                         <!-- 並び順 -->
-                        <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え">
+                        <button id="btn-sort" onclick="openSortSheet()" class="sort-icon-btn" title="並び替え" aria-label="並び替え">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg>
                         </button>
                     </div>
@@ -175,7 +183,7 @@
                     <div class="relative flex-1 flex items-center bg-[rgba(142,142,147,0.12)] rounded-[10px] px-2.5 py-1.5 transition-colors focus-within:bg-[rgba(142,142,147,0.18)] min-w-0">
                         <svg class="w-3.5 h-3.5 text-gray-400 shrink-0 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         <input type="text" id="inp-cal-search" oninput="onCalSearchInput(this.value)" placeholder="キーワードで絞り込み" class="w-full bg-transparent text-[13px] text-gray-900 outline-none placeholder-gray-400 min-w-0">
-                        <button id="btn-clear-search" onclick="clearCalSearch()" class="hidden text-gray-400 p-0.5 hover:text-gray-600 active:opacity-70 shrink-0">
+                        <button id="btn-clear-search" aria-label="検索をクリア" onclick="clearCalSearch()" class="hidden text-gray-400 p-0.5 hover:text-gray-600 active:opacity-70 shrink-0">
                             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
                         </button>
                     </div>
@@ -211,13 +219,13 @@
                 </div>
 
                 <div class="flex justify-between items-center mb-1">
-                    <button onclick="shiftDate(-1)" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
+                    <button onclick="shiftDate(-1)" aria-label="前へ" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg></button>
                     <div class="flex items-baseline gap-2">
                         <span class="text-gray-500 text-[13px] font-medium" id="lbl-period">今日</span>
                         <span class="text-[20px] font-bold text-gray-900 tracking-tight">¥<span id="lbl-total">0</span></span>
                         <span class="text-[11px] font-semibold text-gray-400 hidden" id="lbl-perday-wrap">(¥<span id="lbl-perday">0</span>/日)</span>
                     </div>
-                    <button onclick="shiftDate(1)" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
+                    <button onclick="shiftDate(1)" aria-label="次へ" class="p-1 text-[#007AFF] active:opacity-50"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></button>
                 </div>
             </div>
 
@@ -422,7 +430,7 @@
                 <span class="text-[10px] font-semibold text-gray-400 transition-colors">履歴</span>
             </div>
             <div class="flex justify-center relative">
-                <button class="btn-global-add" id="btn-global-add">
+                <button class="btn-global-add" id="btn-global-add" aria-label="支出を入力">
                     <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
                 </button>
             </div>
@@ -554,7 +562,7 @@
                         <span class="text-gray-900 font-medium whitespace-nowrap shrink-0 pr-4">お店</span>
                         <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
                             <select id="inp-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" onchange="handleShopSelectChange('inp-shop','inp-class','inp-cat','inp-payment')" dir="rtl"></select>
-                            <button onclick="promptAddNewShop('inp-class','inp-shop','inp-cat','inp-payment')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
+                            <button type="button" aria-label="お店を追加" onclick="promptAddNewShop('inp-class','inp-shop','inp-cat','inp-payment')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                             </button>
                         </div>
@@ -577,7 +585,7 @@
                     </div>
                 </div>
             </div>
-            <div class="px-4 pt-3 pb-[30px] shrink-0 bg-[#F2F2F7] border-t border-[rgba(60,60,67,0.06)]">
+            <div class="px-4 pt-3 pb-[max(30px,env(safe-area-inset-bottom))] shrink-0 bg-[#F2F2F7] border-t border-[rgba(60,60,67,0.06)]">
                 <button onclick="saveTransaction()" class="w-full py-[18px] bg-[#007AFF] text-white rounded-[18px] text-[20px] font-bold shadow-[0_8px_24px_rgba(0,122,255,0.35)] transition-transform active:scale-95 flex items-center justify-center gap-2 tracking-wide">保存する</button>
             </div>
         </div>
@@ -662,7 +670,7 @@
                         <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">お店</span>
                         <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
                             <select id="sh-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" onchange="handleShopSelectChange('sh-shop','sh-class','sh-cat','sh-pay')" dir="rtl"></select>
-                            <button onclick="promptAddNewShop('sh-class','sh-shop','sh-cat','sh-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
+                            <button type="button" aria-label="お店を追加" onclick="promptAddNewShop('sh-class','sh-shop','sh-cat','sh-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                             </button>
                         </div>
@@ -722,7 +730,7 @@
                         <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">お店</span>
                         <div class="flex items-center flex-1 justify-end ml-2 overflow-hidden">
                             <select id="fx-shop" class="ios-input appearance-none bg-transparent truncate flex-1 ml-0 pr-2" onchange="handleShopSelectChange('fx-shop','fx-class','fx-cat','fx-pay')" dir="rtl"></select>
-                            <button onclick="promptAddNewShop('fx-class','fx-shop','fx-cat','fx-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
+                            <button type="button" aria-label="お店を追加" onclick="promptAddNewShop('fx-class','fx-shop','fx-cat','fx-pay')" class="w-7 h-7 flex items-center justify-center bg-[rgba(0,122,255,0.1)] text-[#007AFF] rounded-full active:opacity-60 shrink-0">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                             </button>
                         </div>
