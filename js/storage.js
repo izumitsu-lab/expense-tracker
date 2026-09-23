@@ -1,4 +1,4 @@
-/* 家計簿アプリ v2.8 — js/storage.js（2/10）
+/* 家計簿アプリ v2.9 — js/storage.js（2/10）
  * 端末内の保存（IndexedDB。使えないときは localStorage）・定期支出の自動追加
  * index.html で core → storage → ui → input → history → stats → settings → sync → keyboard → main の順に読み込む。
  * 関数や変数はファイルをまたいで共有する（読み込み時にすぐ実行する処理は、それより前のファイルの関数だけを使う）。

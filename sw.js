@@ -6,7 +6,7 @@
  *          以前は中身を確認できない形（no-cors）で保存していたため、エラーの応答でも保存・使用されることがあった。
  * - Firestore / ログインなどの通信には一切関与しない（同期の仕組みはそのまま）
  */
-const CACHE_NAME = 'kakeibo-cache-v2.8.0';
+const CACHE_NAME = 'kakeibo-cache-v2.9.0';
 const APP_SHELL = [
   './', './index.html', './styles.css', './tailwind.css',
   './js/core.js', './js/storage.js', './js/ui.js', './js/input.js', './js/history.js', './js/stats.js', './js/settings.js', './js/sync.js', './js/keyboard.js', './js/main.js',

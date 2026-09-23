@@ -1,4 +1,4 @@
-/* 家計簿アプリ v2.8 — js/ui.js（3/10）
+/* 家計簿アプリ v2.9 — js/ui.js（3/10）
  * ダイアログ・画面の切り替え・スワイプ・CSV/JSON の書き出しと復元
  * index.html で core → storage → ui → input → history → stats → settings → sync → keyboard → main の順に読み込む。
  * 関数や変数はファイルをまたいで共有する（読み込み時にすぐ実行する処理は、それより前のファイルの関数だけを使う）。
@@ -165,7 +165,7 @@ window.exportCSV = async () => {
 
 window.exportData = async () => {
     const exportPayload = {
-        version: "2.7",
+        version: "2.9",
         exportedAt: new Date().toISOString(),
         ...state
     };
@@ -251,3 +251,39 @@ window.importData = (event) => {
     }); 
     event.target.value = ''; 
 };
+
+/* ==================== 外観モード（v2.9） ====================
+ * 自動（端末の設定に合わせる）・ライト・ダークを選べる。
+ * 選んだ値は端末ごとに localStorage に保存する（画面を描く前に同期的に読む必要があるため。クラウドには送らない）。
+ * 実際の色は <html data-theme="light|dark"> で切り替える（styles.css）。
+ */
+const THEME_KEY = 'kakeibo_theme';
+const themeMedia = (typeof window.matchMedia === 'function') ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function getThemePref() {
+    try { const v = localStorage.getItem(THEME_KEY); return (v === 'light' || v === 'dark') ? v : 'auto'; } catch (e) { return 'auto'; }
+}
+function applyTheme() {
+    const pref = getThemePref();
+    const dark = pref === 'dark' || (pref === 'auto' && Boolean(themeMedia && themeMedia.matches));
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    // 画面上部（ステータスバーなど）の色も合わせる
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.removeAttribute('media'); m.setAttribute('content', dark ? '#000000' : '#F2F2F7'); });
+    document.querySelectorAll('[data-theme-choice]').forEach(b => {
+        const on = b.getAttribute('data-theme-choice') === pref;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+}
+function setThemePref(pref) {
+    try {
+        if (pref === 'light' || pref === 'dark') localStorage.setItem(THEME_KEY, pref); else localStorage.removeItem(THEME_KEY);
+    } catch (e) {}
+    applyTheme();
+}
+window.setThemePref = setThemePref;
+if (themeMedia) {
+    // 「自動」のとき、端末の設定が変わったらすぐに切り替える
+    if (typeof themeMedia.addEventListener === 'function') themeMedia.addEventListener('change', applyTheme);
+    else if (typeof themeMedia.addListener === 'function') themeMedia.addListener(applyTheme);
+}
+applyTheme();

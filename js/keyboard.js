@@ -1,4 +1,4 @@
-/* 家計簿アプリ v2.8 — js/keyboard.js（9/10）
+/* 家計簿アプリ v2.9 — js/keyboard.js（9/10）
  * キーボード操作（Tab・Enter・Esc・数字キー）
  * index.html で core → storage → ui → input → history → stats → settings → sync → keyboard → main の順に読み込む。
  * 関数や変数はファイルをまたいで共有する（読み込み時にすぐ実行する処理は、それより前のファイルの関数だけを使う）。

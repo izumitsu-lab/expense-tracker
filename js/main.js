@@ -1,4 +1,4 @@
-/* 家計簿アプリ v2.8 — js/main.js（10/10）
+/* 家計簿アプリ v2.9 — js/main.js（10/10）
  * アプリの起動（端末内のデータを読み込んでから画面を表示する）
  * index.html で core → storage → ui → input → history → stats → settings → sync → keyboard → main の順に読み込む。
  * 関数や変数はファイルをまたいで共有する（読み込み時にすぐ実行する処理は、それより前のファイルの関数だけを使う）。

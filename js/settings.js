@@ -1,4 +1,4 @@
-/* 家計簿アプリ v2.8 — js/settings.js（7/10）
+/* 家計簿アプリ v2.9 — js/settings.js（7/10）
  * 定期支出・設定の各画面（時間帯・クイック時刻・お店・分類・カテゴリー・支払い方法・クイック入力）
  * index.html で core → storage → ui → input → history → stats → settings → sync → keyboard → main の順に読み込む。
  * 関数や変数はファイルをまたいで共有する（読み込み時にすぐ実行する処理は、それより前のファイルの関数だけを使う）。

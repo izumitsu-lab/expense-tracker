@@ -11,6 +11,16 @@
     <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <meta name="color-scheme" content="light dark">
+    <!-- v2.9 外観モード：画面を描く前に決めて、違う色が一瞬出ないようにする（詳しくは js/ui.js の applyTheme） -->
+    <script>
+        (function () {
+            var pref = 'auto';
+            try { pref = localStorage.getItem('kakeibo_theme') || 'auto'; } catch (e) {}
+            var sysDark = false;
+            try { sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+            document.documentElement.setAttribute('data-theme', (pref === 'dark' || (pref !== 'light' && sysDark)) ? 'dark' : 'light');
+        })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -281,6 +291,19 @@
                         <div class="ios-item clickable" onclick="openPanel('panel-time-slots')"><span class="font-medium">時間帯（朝・昼・夜）の設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                         <div class="ios-item clickable" onclick="openPanel('panel-quick-times')"><span class="font-medium">クイック時間ピッカーの設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     </div>
+
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">表示</h2>
+                    <div class="ios-list mb-2">
+                        <div class="ios-item">
+                            <span class="font-medium" id="lbl-theme">外観モード</span>
+                            <div class="theme-seg" role="group" aria-labelledby="lbl-theme">
+                                <button type="button" class="theme-seg-btn" data-theme-choice="auto" aria-pressed="false" onclick="setThemePref('auto')">自動</button>
+                                <button type="button" class="theme-seg-btn" data-theme-choice="light" aria-pressed="false" onclick="setThemePref('light')">ライト</button>
+                                <button type="button" class="theme-seg-btn" data-theme-choice="dark" aria-pressed="false" onclick="setThemePref('dark')">ダーク</button>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-[12px] text-gray-400 mx-4 mb-6 leading-relaxed">「自動」は端末の設定（ライト／ダーク）に合わせます。この設定は端末ごとに保存されます。</p>
                 </div>
 
                 <!-- ===== お店タブ ===== -->
