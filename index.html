@@ -224,6 +224,13 @@
 
         .hidden-gate { display: none !important; }
 
+        .ios-switch { position: relative; display: inline-block; width: 47px; height: 28px; flex-shrink: 0; }
+        .ios-switch input { opacity: 0; width: 0; height: 0; }
+        .ios-switch .slider { position: absolute; cursor: pointer; inset: 0; background-color: rgba(120,120,128,0.32); border-radius: 999px; transition: background-color 0.2s ease; }
+        .ios-switch .slider::before { content: ""; position: absolute; height: 24px; width: 24px; left: 2px; top: 2px; background-color: #fff; border-radius: 50%; transition: transform 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+        .ios-switch input:checked + .slider { background-color: #34C759; }
+        .ios-switch input:checked + .slider::before { transform: translateX(19px); }
+
         .filter-pill {
             display: inline-flex;
             align-items: center;
@@ -574,36 +581,81 @@
         <div id="view-settings" class="view-section overflow-hidden">
             <div class="px-5 pt-6 pb-2 shrink-0">
                 <h1 class="text-[34px] font-bold mb-4 tracking-tight">設定</h1>
+
+                <!-- 3タブ セグメント (一般, お店, データ管理) -->
+                <div class="flex bg-[rgba(118,118,128,0.12)] rounded-[9px] p-[2px] mb-2 w-full relative">
+                    <div id="settings-seg-indicator" class="absolute top-[2px] bottom-[2px] bg-white rounded-[7px] shadow transition-transform duration-200 ease-out w-[calc(33.333%-2px)] left-[2px]"></div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-black z-10 cursor-pointer settings-seg-btn" onclick="setSettingsTab('general', 0)">一般</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer settings-seg-btn" onclick="setSettingsTab('shop', 1)">お店</div>
+                    <div class="flex-1 text-center py-1.5 text-[13px] font-semibold text-gray-500 z-10 cursor-pointer settings-seg-btn" onclick="setSettingsTab('data', 2)">データ管理</div>
+                </div>
             </div>
             <div class="flex-1 overflow-y-auto px-4 no-scrollbar pb-10">
-                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-2">バックアップと同期</h2>
-                <div class="ios-list mb-2">
-                    <div class="ios-item clickable" onclick="openPanel('panel-sync')">
-                        <span class="font-medium">クラウド同期</span>
-                        <span class="text-gray-400 text-[14px] flex items-center gap-1"><span id="lbl-sync-status">未設定</span><span class="font-bold text-xl">›</span></span>
+
+                <!-- ===== 一般タブ ===== -->
+                <div id="settings-tab-general">
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-2">バックアップと同期</h2>
+                    <div class="ios-list mb-2">
+                        <div class="ios-item clickable" onclick="openPanel('panel-sync')">
+                            <span class="font-medium">クラウド同期</span>
+                            <span class="text-gray-400 text-[14px] flex items-center gap-1"><span id="lbl-sync-status">未設定</span><span class="font-bold text-xl">›</span></span>
+                        </div>
+                    </div>
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">支払い方法</h2>
+                    <div class="ios-list">
+                        <div class="ios-item clickable" onclick="openPanel('panel-payments')"><span class="font-medium">支払い方法の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    </div>
+
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">カテゴリー</h2>
+                    <div class="ios-list">
+                        <div class="ios-item clickable" onclick="openPanel('panel-categories')"><span class="font-medium">カテゴリーの管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    </div>
+
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">クイック入力</h2>
+                    <div class="ios-list">
+                        <div class="ios-item clickable" onclick="openPanel('panel-shortcuts')"><span class="font-medium">クイック入力 (スワイプ画面)</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    </div>
+
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">時間</h2>
+                    <div class="ios-list">
+                        <div class="ios-item clickable" onclick="openPanel('panel-time-slots')"><span class="font-medium">時間帯（朝・昼・夜）の設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                        <div class="ios-item clickable" onclick="openPanel('panel-quick-times')"><span class="font-medium">クイック時間ピッカーの設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
                     </div>
                 </div>
-                <div class="ios-list mt-2">
-                    <div class="ios-item clickable" onclick="openPanel('panel-payments')"><span class="font-medium">支払い方法の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                    <div class="ios-item clickable" onclick="openPanel('panel-categories')"><span class="font-medium">カテゴリーの管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                </div>
-                
-                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">入力・時間・お店</h2>
-                <div class="ios-list">
-                    <div class="ios-item clickable" onclick="openPanel('panel-time-slots')"><span class="font-medium">時間帯（朝・昼・夜）の設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                    <div class="ios-item clickable" onclick="openPanel('panel-quick-times')"><span class="font-medium">クイック時間ピッカーの設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                    <div class="ios-item clickable" onclick="openPanel('panel-shortcuts')"><span class="font-medium">クイック入力 (スワイプ画面)</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                    <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
-                    <div class="ios-item clickable" onclick="openPanel('panel-shops')"><span class="font-medium">お店リストと詳細設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+
+                <!-- ===== お店タブ ===== -->
+                <div id="settings-tab-shop" class="hidden">
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-2">お店</h2>
+                    <div class="ios-list mb-2">
+                        <div class="ios-item clickable" onclick="openPanel('panel-classes')"><span class="font-medium">お店の分類の管理</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                        <div class="ios-item clickable" onclick="openPanel('panel-shops')"><span class="font-medium">お店リストと詳細設定</span><span class="text-gray-400 font-bold text-xl">›</span></div>
+                    </div>
+
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">支払い方法の自動更新</h2>
+                    <div class="ios-list">
+                        <div class="ios-item">
+                            <div class="flex flex-col pr-3 min-w-0">
+                                <span class="font-medium">最後に使った支払い方法を既定にする</span>
+                                <span class="text-[12px] text-gray-400 mt-0.5 leading-relaxed">オンにすると、お店ごとの詳細設定にある「支払い」が、そのお店で実際に最後に使った支払い方法へ自動的に書き換わります。</span>
+                            </div>
+                            <label class="ios-switch shrink-0">
+                                <input type="checkbox" id="toggle-auto-update-shop-payment" onchange="setAutoUpdateShopPayment(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
-                <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-6">データ管理</h2>
-                <div class="ios-list">
-                    <div class="ios-item clickable" onclick="exportCSV()"><span class="font-medium text-[#007AFF]">家計簿を出力 (CSV形式)</span></div>
-                    <div class="ios-item clickable" onclick="exportData()"><span class="font-medium">バックアップ (JSON形式で保存)</span></div>
-                    <div class="ios-item clickable" onclick="document.getElementById('file-import').click()"><span class="font-medium text-[#FF3B30]">復元 (JSON形式を検証して読込)</span></div>
+                <!-- ===== データ管理タブ ===== -->
+                <div id="settings-tab-data" class="hidden">
+                    <h2 class="text-[13px] font-semibold text-gray-500 mb-2 uppercase ml-2 mt-2">データ管理</h2>
+                    <div class="ios-list">
+                        <div class="ios-item clickable" onclick="exportCSV()"><span class="font-medium text-[#007AFF]">家計簿を出力 (CSV形式)</span></div>
+                        <div class="ios-item clickable" onclick="exportData()"><span class="font-medium">バックアップ (JSON形式で保存)</span></div>
+                        <div class="ios-item clickable" onclick="document.getElementById('file-import').click()"><span class="font-medium text-[#FF3B30]">復元 (JSON形式を検証して読込)</span></div>
+                    </div>
+                    <input type="file" id="file-import" accept=".json" style="display: none;" onchange="importData(event)">
                 </div>
-                <input type="file" id="file-import" accept=".json" style="display: none;" onchange="importData(event)">
             </div>
         </div>
 
@@ -970,6 +1022,13 @@
                         </div>
                     </div>
                     <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">支払い</span><select id="sh-pay" class="ios-input bg-transparent text-[#007AFF]" dir="rtl"></select></div>
+                    <div class="ios-item">
+                        <span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">費目タイプ</span>
+                        <div class="flex items-center gap-2 flex-grow justify-end">
+                            <button type="button" onclick="setShortcutIsFixed(false)" id="btn-sh-variable" class="px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors">変動費</button>
+                            <button type="button" onclick="setShortcutIsFixed(true)" id="btn-sh-fixed" class="px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors">固定費</button>
+                        </div>
+                    </div>
                     <div class="ios-item"><span class="text-gray-900 whitespace-nowrap shrink-0 pr-4">メモ</span><input type="text" id="sh-memo" class="ios-input text-left ml-0" placeholder=""></div>
                 </div>
             </div>
@@ -1221,7 +1280,8 @@
           ],
           "shortcuts": [],
           "fixedExpenses": [],
-          "lastRunDate": ""
+          "lastRunDate": "",
+          "autoUpdateShopPayment": false
         };
 
         let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -1230,6 +1290,16 @@
         let editingTxnId = null;
         let currentDetailIsFixed = false;
         let currentFixedEditorIsFixed = true;
+        let currentShortcutIsFixed = false;
+
+        function setShortcutIsFixed(val) {
+            currentShortcutIsFixed = val;
+            const btnVar = document.getElementById('btn-sh-variable');
+            const btnFix = document.getElementById('btn-sh-fixed');
+            btnVar.className = `px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${!val ? 'bg-[#007AFF] text-white' : 'bg-gray-100 text-gray-400'}`;
+            btnFix.className = `px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors ${val ? 'bg-[#007AFF] text-white' : 'bg-gray-100 text-gray-400'}`;
+        }
+        window.setShortcutIsFixed = setShortcutIsFixed;
         let editingShopId = null;
         let editingShortcutId = null;
         let editingFixedId = null;
@@ -1279,6 +1349,41 @@
         let datePromptCallback = null;
         let shopSortables = [];
         let isFlowFromInput = false;
+        let settingsTab = 'general';
+
+        /* ==================== 設定画面（タブ切り替え） ==================== */
+        function setSettingsTab(tab, idx) {
+            settingsTab = tab;
+            document.getElementById('settings-seg-indicator').style.transform = `translateX(${idx * 100}%)`;
+            document.querySelectorAll('.settings-seg-btn').forEach((b, i) => {
+                b.classList.toggle('text-gray-500', i !== idx);
+                b.classList.toggle('text-black', i === idx);
+            });
+            document.getElementById('settings-tab-general').classList.toggle('hidden', tab !== 'general');
+            document.getElementById('settings-tab-shop').classList.toggle('hidden', tab !== 'shop');
+            document.getElementById('settings-tab-data').classList.toggle('hidden', tab !== 'data');
+            if (tab === 'shop') updateAutoUpdateShopPaymentUI();
+        }
+
+        function updateAutoUpdateShopPaymentUI() {
+            const toggle = document.getElementById('toggle-auto-update-shop-payment');
+            if (toggle) toggle.checked = Boolean(state.autoUpdateShopPayment);
+        }
+
+        function setAutoUpdateShopPayment(checked) {
+            state.autoUpdateShopPayment = checked;
+            saveData();
+        }
+
+        // そのお店を実際に利用した際の支払い方法が、登録済みの既定の支払い方法と異なる場合、
+        // 「最後に使った支払い方法を既定にする」がオンなら、お店の詳細設定を自動的に書き換える
+        function maybeAutoUpdateShopPayment(shopName, paymentId) {
+            if (!state.autoUpdateShopPayment) return;
+            if (!shopName || !paymentId) return;
+            const shop = state.shops.find(s => s.name === shopName);
+            if (!shop || shop.paymentId === paymentId) return;
+            shop.paymentId = paymentId;
+        }
 
         function updateUnsetBadge() {
             const unsetCount = state.transactions.filter(t => (!t.classId && !t.categoryId) || t.isPending || t.amount === 0).length;
@@ -1311,6 +1416,7 @@
                     state.shortcuts = Array.isArray(parsed.shortcuts) ? parsed.shortcuts : DEFAULT_STATE.shortcuts;
                     state.fixedExpenses = Array.isArray(parsed.fixedExpenses) ? parsed.fixedExpenses : [];
                     state.lastRunDate = typeof parsed.lastRunDate === 'string' ? parsed.lastRunDate : "";
+                    state.autoUpdateShopPayment = Boolean(parsed.autoUpdateShopPayment);
                 }
             } catch (e) {
                 console.error("Local load failed", e);
@@ -1448,9 +1554,10 @@
                 updateFilterButtonsUI(); 
                 renderCalendar(); 
             }
-            if (target === 'main') renderShortcuts(); 
-            if (target === 'stats') renderStats(); 
+            if (target === 'main') renderShortcuts();
+            if (target === 'stats') renderStats();
             if (target === 'fixed') renderFixedExpenses();
+            if (target === 'settings') updateAutoUpdateShopPaymentUI();
         }
 
         document.getElementById('btn-global-add').addEventListener('click', () => { resetMainView(); switchView('main', 'input'); });
@@ -1580,6 +1687,7 @@
                         state.shortcuts = Array.isArray(imported.shortcuts) ? imported.shortcuts : [];
                         state.fixedExpenses = Array.isArray(imported.fixedExpenses) ? imported.fixedExpenses : [];
                         state.lastRunDate = imported.lastRunDate || "";
+                        state.autoUpdateShopPayment = Boolean(imported.autoUpdateShopPayment);
 
                         saveData(); 
                         showAlert("データの復元が完了しました。"); 
@@ -1920,7 +2028,7 @@
                 renderTimePills(initTime, true);
                 document.getElementById('inp-class').value = shortcutObj.classId; updateShopSelect('inp-class', 'inp-shop', shortcutObj.shopName);
                 document.getElementById('inp-cat').value = shortcutObj.categoryId; document.getElementById('inp-payment').value = shortcutObj.paymentId; document.getElementById('inp-memo').value = shortcutObj.memo;
-                setDetailIsFixed(false);
+                setDetailIsFixed(Boolean(shortcutObj.isFixed));
             } else {
                 title.textContent = '詳細確認'; delBox.classList.add('hidden'); delBox.classList.remove('block');
                 document.getElementById('inp-amount').value = currentAmount === "0" ? "" : currentAmount; 
@@ -1985,13 +2093,14 @@
                 isFixed: currentDetailIsFixed,
                 ts: calculatedTs
             };
-            if (editingTxnId) { 
-                const idx = state.transactions.findIndex(t => t.id === editingTxnId); 
-                if (idx > -1) state.transactions[idx] = newTxn; 
-            } else { 
-                state.transactions.push(newTxn); 
+            if (editingTxnId) {
+                const idx = state.transactions.findIndex(t => t.id === editingTxnId);
+                if (idx > -1) state.transactions[idx] = newTxn;
+            } else {
+                state.transactions.push(newTxn);
             }
-            saveData(); 
+            maybeAutoUpdateShopPayment(newTxn.shopName, newTxn.paymentId);
+            saveData();
             closeAllModals(); 
             resetMainView(); 
 
@@ -3540,30 +3649,32 @@
                 if(s) { 
                     document.getElementById('sh-name').value = s.name; 
                     document.getElementById('sh-amount').value = s.amount || ''; 
-                    document.getElementById('sh-class').value = s.classId; updateShopSelect('sh-class','sh-shop', s.shopName); 
-                    document.getElementById('sh-cat').value = s.categoryId; document.getElementById('sh-pay').value = s.paymentId; document.getElementById('sh-memo').value = s.memo || ''; 
-                } 
-            } 
-            else { 
-                editingShortcutId = null; document.getElementById('sh-name').value = ""; document.getElementById('sh-amount').value = ""; document.getElementById('sh-memo').value = ""; 
-                if(state.shopClasses.length > 0) document.getElementById('sh-class').value = state.shopClasses[0].id; 
-                if(state.categories.length > 0) document.getElementById('sh-cat').value = state.categories[0].id; 
-                if(state.paymentMethods.length > 0) document.getElementById('sh-pay').value = state.paymentMethods[0].id; 
-                updateShopSelect('sh-class','sh-shop', ''); 
+                    document.getElementById('sh-class').value = s.classId; updateShopSelect('sh-class','sh-shop', s.shopName);
+                    document.getElementById('sh-cat').value = s.categoryId; document.getElementById('sh-pay').value = s.paymentId; document.getElementById('sh-memo').value = s.memo || '';
+                    setShortcutIsFixed(Boolean(s.isFixed));
+                }
+            }
+            else {
+                editingShortcutId = null; document.getElementById('sh-name').value = ""; document.getElementById('sh-amount').value = ""; document.getElementById('sh-memo').value = "";
+                if(state.shopClasses.length > 0) document.getElementById('sh-class').value = state.shopClasses[0].id;
+                if(state.categories.length > 0) document.getElementById('sh-cat').value = state.categories[0].id;
+                if(state.paymentMethods.length > 0) document.getElementById('sh-pay').value = state.paymentMethods[0].id;
+                updateShopSelect('sh-class','sh-shop', '');
+                setShortcutIsFixed(false);
             }
             document.getElementById('modal-shortcut-editor').classList.add('active');
         };
 
         window.saveShortcutEditor = () => {
-            const name = document.getElementById('sh-name').value.trim(); 
+            const name = document.getElementById('sh-name').value.trim();
             const amtStr = document.getElementById('sh-amount').value;
-            const amt = amtStr ? parseInt(amtStr, 10) : null; 
-            
+            const amt = amtStr ? parseInt(amtStr, 10) : null;
+
             if (!name) { showAlert("登録名を入力してください"); return; }
             if (amt !== null && (isNaN(amt) || amt <= 0)) { showAlert("金額は1円以上で入力してください"); return; }
-            
+
             const shopNameVal = document.getElementById('sh-shop').value;
-            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim() };
+            const newSC = { id: editingShortcutId || generateId(), name: name, amount: amt, classId: document.getElementById('sh-class').value, categoryId: document.getElementById('sh-cat').value, shopName: shopNameVal === 'ADD_NEW' ? '' : shopNameVal, paymentId: document.getElementById('sh-pay').value, memo: document.getElementById('sh-memo').value.trim(), isFixed: currentShortcutIsFixed };
             if (editingShortcutId) { const idx = state.shortcuts.findIndex(x => x.id === editingShortcutId); if(idx > -1) state.shortcuts[idx] = newSC; } else { state.shortcuts.push(newSC); } saveData(); closeModal('modal-shortcut-editor'); renderPanelLists(); renderShortcuts();
         };
 
